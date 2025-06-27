@@ -278,10 +278,8 @@ export function VoiceEntryModal({ visible, onClose, onVoiceDataParsed }: VoiceEn
             
             // Show success for a moment, then close and pass data
             setTimeout(() => {
-              onClose();
-              setTimeout(() => {
-                onVoiceDataParsed(parsedMetrics);
-              }, 100);
+              addDebugInfo('Closing modal and passing data');
+              onVoiceDataParsed(parsedMetrics);
             }, 1500);
           } else {
             addDebugInfo('No metrics detected in transcript');
@@ -514,7 +512,11 @@ export function VoiceEntryModal({ visible, onClose, onVoiceDataParsed }: VoiceEn
             </View>
           )}
 
-          <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
+          <TouchableOpacity 
+            style={styles.cancelButton} 
+            onPress={onClose}
+            disabled={voiceState === 'success'}
+          >
             <Text style={styles.cancelButtonText}>Cancel</Text>
           </TouchableOpacity>
         </View>

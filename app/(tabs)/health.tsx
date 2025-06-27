@@ -205,6 +205,7 @@ export default function HealthScreen() {
     
     // Open the add modal with pre-filled data
     console.log('Opening add modal with pre-filled data');
+    setShowVoiceModal(false); // Ensure voice modal is closed first
     setShowAddModal(true);
   };
 
@@ -237,6 +238,15 @@ export default function HealthScreen() {
       ...prev,
       [type]: { ...prev[type], [field]: value }
     }));
+  };
+
+  const handleCloseAddModal = () => {
+    setShowAddModal(false);
+    // Don't reset form data immediately to preserve user input
+  };
+
+  const handleCloseVoiceModal = () => {
+    setShowVoiceModal(false);
   };
 
   const formatDate = (dateString: string) => {
@@ -322,11 +332,11 @@ export default function HealthScreen() {
                   size={16} 
                   color={isSelected ? '#ffffff' : config.color} 
                 />
-                <Text style={[
+          onRequestClose={handleCloseAddModal}
                   styles.metricTabText,
                   isSelected && styles.metricTabTextSelected
                 ]}>
-                  {config.shortName}
+              <TouchableOpacity onPress={handleCloseAddModal}>
                 </Text>
               </TouchableOpacity>
             );
@@ -523,7 +533,7 @@ export default function HealthScreen() {
       {/* Voice Entry Modal */}
       <VoiceEntryModal
         visible={showVoiceModal}
-        onClose={() => setShowVoiceModal(false)}
+        onClose={handleCloseVoiceModal}
         onVoiceDataParsed={handleVoiceDataParsed}
       />
 
