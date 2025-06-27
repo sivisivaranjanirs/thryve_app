@@ -72,7 +72,7 @@ class ElevenLabsService {
         // Set timeout for recording duration
         if (options.recordingDuration) {
           timeoutId = setTimeout(() => {
-          recognition.stop();
+            recognition.stop();
           }, options.recordingDuration);
         }
       };
@@ -146,41 +146,40 @@ class ElevenLabsService {
           logger.info('Starting text-to-speech', { textLength: text.length });
           
           span.setAttribute("service", "elevenlabs");
-      const response = await fetch(`${this.getSupabaseUrl()}/functions/v1/elevenlabs-tts`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY}`,
-        },
-        body: JSON.stringify({
-          text,
-          voice_id: options.voice_id || 'pNInz6obpgDQGcFmaJgB',
-          model_id: options.model_id || 'eleven_monolingual_v1',
-          voice_settings: options.voice_settings || {
-            stability: 0.5,
-            similarity_boost: 0.5,
-            style: 0.0,
-            use_speaker_boost: true,
-          },
-        }),
-      });
+          const response = await fetch(`${this.getSupabaseUrl()}/functions/v1/elevenlabs-tts`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY}`,
+            },
+            body: JSON.stringify({
+              text,
+              voice_id: options.voice_id || 'pNInz6obpgDQGcFmaJgB',
+              model_id: options.model_id || 'eleven_monolingual_v1',
+              voice_settings: options.voice_settings || {
+                stability: 0.5,
+                similarity_boost: 0.5,
+                style: 0.0,
+                use_speaker_boost: true,
+              },
+            }),
+          });
 
-      if (!response.ok) {
+          if (!response.ok) {
             logger.error('TTS API request failed', { status: response.status });
             span.setAttribute("fallback_used", true);
-        throw new Error(`TTS failed with status ${response.status}`);
-      }
+            throw new Error(`TTS failed with status ${response.status}`);
+          }
 
-      const audioArrayBuffer = await response.arrayBuffer();
+          const audioArrayBuffer = await response.arrayBuffer();
           logger.info('TTS completed successfully', { audioSize: audioArrayBuffer.byteLength });
-      await this.playAudio(audioArrayBuffer);
+          await this.playAudio(audioArrayBuffer);
         }
       );
     } catch (error) {
       logger.error('Text-to-speech error', { error: error instanceof Error ? error.message : 'Unknown error' });
       Sentry.captureException(error);
       // Try fallback
-      // Fallback to Web Speech API
       await this.fallbackTextToSpeech(text);
     }
   }
@@ -397,118 +396,118 @@ class ElevenLabsService {
         span.setAttribute("duration_ms", durationMs);
         
         try {
-      if (!('mediaDevices' in navigator)) {
+          if (!('mediaDevices' in navigator)) {
             logger.error('MediaDevices not available');
-        throw new Error('Voice recording is not supported in this browser. Please use a modern browser like Chrome, Firefox, or Safari.');
-      }
+            throw new Error('Voice recording is not supported in this browser. Please use a modern browser like Chrome, Firefox, or Safari.');
+          }
       
           logger.debug('Requesting microphone access');
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          sampleRate: 44100
-        } 
-      });
+          const stream = await navigator.mediaDevices.getUserMedia({ 
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+              sampleRate: 44100
+            } 
+          });
           logger.info('Microphone access granted, starting recording');
       
-      // Check if MediaRecorder is supported
-      if (!window.MediaRecorder) {
-        stream.getTracks().forEach(track => track.stop());
+          // Check if MediaRecorder is supported
+          if (!window.MediaRecorder) {
+            stream.getTracks().forEach(track => track.stop());
             logger.error('MediaRecorder not supported');
-        throw new Error('Audio recording is not supported in this browser.');
-      }
+            throw new Error('Audio recording is not supported in this browser.');
+          }
       
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus') 
-          ? 'audio/webm;codecs=opus' 
-          : 'audio/webm'
-      });
-      const chunks: Blob[] = [];
-
-      return new Promise((resolve, reject) => {
-        let startTime = Date.now();
-        let progressInterval: NodeJS.Timeout;
-        let hasData = false;
-        let recordingTimeout: NodeJS.Timeout;
-
-        mediaRecorder.ondataavailable = (event) => {
-          if (event.data.size > 0) {
-            chunks.push(event.data);
-            hasData = true;
-              logger.debug(logger.fmt`Audio data chunk received: ${event.data.size} bytes`);
-          }
-        };
-
-        mediaRecorder.onstop = async () => {
-            logger.debug('Recording stopped');
-          stream.getTracks().forEach(track => track.stop());
-          if (progressInterval) clearInterval(progressInterval);
-          if (recordingTimeout) clearTimeout(recordingTimeout);
-          
-          if (!hasData) {
-            reject(new Error('No audio data was recorded. Please check your microphone permissions and speak clearly.'));
-            return;
-          }
-          
-          const audioBlob = new Blob(chunks, { 
-            type: mediaRecorder.mimeType || 'audio/webm' 
+          const mediaRecorder = new MediaRecorder(stream, {
+            mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus') 
+              ? 'audio/webm;codecs=opus' 
+              : 'audio/webm'
           });
-            logger.info('Audio blob created', { size: audioBlob.size });
-          const arrayBuffer = await audioBlob.arrayBuffer();
-          
-          // Validate that we have audio data
-          if (arrayBuffer.byteLength === 0) {
-            reject(new Error('No audio data recorded. Please speak clearly and try again.'));
-            return;
-          }
-          
-            logger.info('Audio recording complete', { size: arrayBuffer.byteLength });
-            span.setAttribute("audio_size", arrayBuffer.byteLength);
-          resolve(arrayBuffer);
-        };
+          const chunks: Blob[] = [];
 
-        mediaRecorder.onerror = (error) => {
-            logger.error('MediaRecorder error', { error });
-          stream.getTracks().forEach(track => track.stop());
-          if (progressInterval) clearInterval(progressInterval);
-          if (recordingTimeout) clearTimeout(recordingTimeout);
-          
-          logger.error('MediaRecorder error', { error });
-          Sentry.captureException(error);
-          reject(error);
-        };
+          return new Promise((resolve, reject) => {
+            let startTime = Date.now();
+            let progressInterval: NodeJS.Timeout;
+            let hasData = false;
+            let recordingTimeout: NodeJS.Timeout;
 
-          logger.debug('Starting MediaRecorder');
-        mediaRecorder.start();
+            mediaRecorder.ondataavailable = (event) => {
+              if (event.data.size > 0) {
+                chunks.push(event.data);
+                hasData = true;
+                logger.debug(logger.fmt`Audio data chunk received: ${event.data.size} bytes`);
+              }
+            };
+
+            mediaRecorder.onstop = async () => {
+              logger.debug('Recording stopped');
+              stream.getTracks().forEach(track => track.stop());
+              if (progressInterval) clearInterval(progressInterval);
+              if (recordingTimeout) clearTimeout(recordingTimeout);
+          
+              if (!hasData) {
+                reject(new Error('No audio data was recorded. Please check your microphone permissions and speak clearly.'));
+                return;
+              }
+          
+              const audioBlob = new Blob(chunks, { 
+                type: mediaRecorder.mimeType || 'audio/webm' 
+              });
+              logger.info('Audio blob created', { size: audioBlob.size });
+              const arrayBuffer = await audioBlob.arrayBuffer();
+          
+              // Validate that we have audio data
+              if (arrayBuffer.byteLength === 0) {
+                reject(new Error('No audio data recorded. Please speak clearly and try again.'));
+                return;
+              }
+          
+              logger.info('Audio recording complete', { size: arrayBuffer.byteLength });
+              span.setAttribute("audio_size", arrayBuffer.byteLength);
+              resolve(arrayBuffer);
+            };
+
+            mediaRecorder.onerror = (error) => {
+              logger.error('MediaRecorder error', { error });
+              stream.getTracks().forEach(track => track.stop());
+              if (progressInterval) clearInterval(progressInterval);
+              if (recordingTimeout) clearTimeout(recordingTimeout);
+          
+              logger.error('MediaRecorder error', { error });
+              Sentry.captureException(error);
+              reject(error);
+            };
+
+            logger.debug('Starting MediaRecorder');
+            mediaRecorder.start();
         
-        // Stop recording after specified duration
-        recordingTimeout = setTimeout(() => {
-          if (mediaRecorder.state === 'recording') {
-              logger.debug(logger.fmt`Stopping recording after ${durationMs}ms`);
-            mediaRecorder.stop();
-          }
-        }, durationMs);
-      });
-    } catch (error) {
-        logger.error('Audio recording error', { error: error instanceof Error ? error.message : 'Unknown error' });
-        Sentry.captureException(error);
+            // Stop recording after specified duration
+            recordingTimeout = setTimeout(() => {
+              if (mediaRecorder.state === 'recording') {
+                logger.debug(logger.fmt`Stopping recording after ${durationMs}ms`);
+                mediaRecorder.stop();
+              }
+            }, durationMs);
+          });
+        } catch (error) {
+          logger.error('Audio recording error', { error: error instanceof Error ? error.message : 'Unknown error' });
+          Sentry.captureException(error);
       
-      if (error instanceof Error) {
-        if (error.name === 'NotAllowedError') {
-          throw new Error('Microphone access denied. Please allow microphone permissions in your browser settings and try again.');
-        } else if (error.name === 'NotFoundError') {
-          throw new Error('No microphone found. Please connect a microphone and try again.');
-        } else if (error.name === 'NotSupportedError') {
-          throw new Error('Audio recording is not supported in this browser. Please use a modern browser.');
-        } else {
-          throw error;
+          if (error instanceof Error) {
+            if (error.name === 'NotAllowedError') {
+              throw new Error('Microphone access denied. Please allow microphone permissions in your browser settings and try again.');
+            } else if (error.name === 'NotFoundError') {
+              throw new Error('No microphone found. Please connect a microphone and try again.');
+            } else if (error.name === 'NotSupportedError') {
+              throw new Error('Audio recording is not supported in this browser. Please use a modern browser.');
+            } else {
+              throw error;
+            }
+          } else {
+            throw new Error('Failed to access microphone. Please try again.');
+          }
         }
-      } else {
-        throw new Error('Failed to access microphone. Please try again.');
-      }
-    }
       }
     );
   }

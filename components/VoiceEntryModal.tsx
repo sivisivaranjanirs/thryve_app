@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   Animated,
 } from 'react-native';
-import { Mic, MicOff } from 'lucide-react-native';
+import { Mic, MicOff, AlertCircle } from 'lucide-react-native';
 import { useVoiceChat } from '@/hooks/useVoiceChat';
 import { useSubscription } from '@/hooks/useSubscription';
 import * as Sentry from '@sentry/react';
@@ -20,333 +20,359 @@ interface VoiceEntryModalProps {
   onVoiceDataParsed: (parsedData: Record<string, string>) => void;
 }
 
+type VoiceState = 'idle' | 'recording' | 'processing' | 'success' | 'error';
+
 export function VoiceEntryModal({ visible, onClose, onVoiceDataParsed }: VoiceEntryModalProps) {
   const { getPremiumFeatures } = useSubscription();
   const premiumFeatures = getPremiumFeatures();
   
-  // Simplified state management - only track what we need
-  const [recordingState, setRecordingState] = useState<'idle' | 'recording' | 'processing' | 'complete' | 'error'>('idle');
+  const [voiceState, setVoiceState] = useState<VoiceState>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [debugInfo, setDebugInfo] = useState<string[]>([]);
   
-  const {
-    startRecording,
-    isRecording: voiceIsRecording,
-    isProcessing: voiceIsProcessing,
-    error: voiceError,
-    clearError,
-    resetStates,
-  } = useVoiceChat({
-    autoPlay: false,
-    recordingDuration: 10000, // 10 seconds max
-    language: 'en',
-  });
-
   const scaleAnim = new Animated.Value(1);
+
+  // Add debug logging
+  const addDebugInfo = (message: string) => {
+    const timestamp = new Date().toLocaleTimeString();
+    setDebugInfo(prev => [...prev.slice(-4), `${timestamp}: ${message}`]);
+    logger.debug('Voice Entry Debug', { message });
+  };
 
   // Reset everything when modal opens/closes
   useEffect(() => {
     if (visible) {
-      logger.debug('Voice modal opened - resetting states');
-      setRecordingState('idle');
+      addDebugInfo('Modal opened - resetting states');
+      setVoiceState('idle');
       setErrorMessage(null);
-      clearError();
-      resetStates();
+      setDebugInfo([]);
     } else {
-      logger.debug('Voice modal closed - cleaning up');
-      setRecordingState('idle');
+      addDebugInfo('Modal closed');
+      setVoiceState('idle');
       setErrorMessage(null);
-      resetStates();
     }
-  }, [visible, clearError, resetStates]);
-
-  // Sync with voice hook states but don't conflict
-  useEffect(() => {
-    if (voiceIsRecording && recordingState !== 'recording') {
-      logger.debug('Voice hook started recording');
-      setRecordingState('recording');
-    } else if (voiceIsProcessing && recordingState !== 'processing') {
-      logger.debug('Voice hook started processing');
-      setRecordingState('processing');
-    } else if (!voiceIsRecording && !voiceIsProcessing && recordingState !== 'idle' && recordingState !== 'complete') {
-      logger.debug('Voice hook finished - returning to idle');
-      setRecordingState('idle');
-    }
-  }, [voiceIsRecording, voiceIsProcessing, recordingState]);
-
-  // Handle voice errors
-  useEffect(() => {
-    if (voiceError) {
-      logger.error('Voice error detected', { error: voiceError });
-      setRecordingState('error');
-      setErrorMessage(voiceError);
-    }
-  }, [voiceError]);
+  }, [visible]);
 
   const parseVoiceTranscriptForMetrics = (transcript: string): Record<string, string> => {
+    addDebugInfo(`Parsing transcript: "${transcript.substring(0, 50)}..."`);
+    
     const text = transcript.toLowerCase();
     const metrics: Record<string, string> = {};
 
-    return Sentry.startSpan(
-      {
-        op: "ai.parse",
-        name: "Parse Voice Transcript for Health Metrics",
-      },
-      (span) => {
-        span.setAttribute("transcript_length", transcript.length);
-        logger.debug('Parsing voice transcript for health metrics', { transcript: transcript.substring(0, 100) });
-
-        // Blood pressure patterns
-        const bpPatterns = [
-          /(?:blood pressure|bp|pressure)\s+(?:is\s+)?(\d{2,3})\s+(?:over|\/)\s+(\d{2,3})/i,
-          /(\d{2,3})\s+(?:over|\/)\s+(\d{2,3})/i
-        ];
-        
-        for (const pattern of bpPatterns) {
-          const match = text.match(pattern);
-          if (match) {
-            metrics.blood_pressure = `${match[1]}/${match[2]}`;
-            logger.info('Detected blood pressure from voice', { value: metrics.blood_pressure });
-            break;
-          }
-        }
-
-        // Heart rate patterns
-        const hrPatterns = [
-          /(?:heart rate|pulse|hr)\s+(?:is\s+)?(\d{2,3})/i,
-          /(\d{2,3})\s+(?:beats per minute|bpm)/i
-        ];
-        
-        for (const pattern of hrPatterns) {
-          const match = text.match(pattern);
-          if (match && !metrics.blood_pressure?.includes(match[1])) {
-            metrics.heart_rate = match[1];
-            logger.info('Detected heart rate from voice', { value: metrics.heart_rate });
-            break;
-          }
-        }
-
-        // Weight patterns
-        const weightPatterns = [
-          /(?:weight|weigh)\s+(?:is\s+)?(\d{2,3}(?:\.\d+)?)/i,
-          /(\d{2,3}(?:\.\d+)?)\s+(?:pounds|lbs|kilograms|kg)/i
-        ];
-        
-        for (const pattern of weightPatterns) {
-          const match = text.match(pattern);
-          if (match) {
-            metrics.weight = match[1];
-            logger.info('Detected weight from voice', { value: metrics.weight });
-            break;
-          }
-        }
-
-        // Blood glucose patterns
-        const bgPatterns = [
-          /(?:blood glucose|blood sugar|glucose|sugar)\s+(?:is\s+)?(\d{2,3})/i,
-          /(\d{2,3})\s+(?:mg\/dl|milligrams)/i
-        ];
-        
-        for (const pattern of bgPatterns) {
-          const match = text.match(pattern);
-          if (match && !Object.values(metrics).includes(match[1])) {
-            metrics.blood_glucose = match[1];
-            logger.info('Detected blood glucose from voice', { value: metrics.blood_glucose });
-            break;
-          }
-        }
-
-        // Temperature patterns
-        const tempPatterns = [
-          /(?:temperature|temp)\s+(?:is\s+)?(\d{2,3}(?:\.\d+)?)/i,
-          /(\d{2,3}(?:\.\d+)?)\s+(?:degrees|fahrenheit|celsius)/i
-        ];
-        
-        for (const pattern of tempPatterns) {
-          const match = text.match(pattern);
-          if (match && !Object.values(metrics).includes(match[1])) {
-            metrics.temperature = match[1];
-            logger.info('Detected temperature from voice', { value: metrics.temperature });
-            break;
-          }
-        }
-
-        const metricsCount = Object.keys(metrics).length;
-        span.setAttribute("metrics_detected", metricsCount);
-        logger.info('Voice transcript parsing completed', { 
-          metricsDetected: metricsCount,
-          metrics: Object.keys(metrics)
-        });
-        
-        return metrics;
+    // Blood pressure patterns
+    const bpPatterns = [
+      /(?:blood pressure|bp|pressure)\s+(?:is\s+)?(\d{2,3})\s+(?:over|\/)\s+(\d{2,3})/i,
+      /(\d{2,3})\s+(?:over|\/)\s+(\d{2,3})/i
+    ];
+    
+    for (const pattern of bpPatterns) {
+      const match = text.match(pattern);
+      if (match) {
+        metrics.blood_pressure = `${match[1]}/${match[2]}`;
+        addDebugInfo(`Found blood pressure: ${metrics.blood_pressure}`);
+        break;
       }
-    );
+    }
+
+    // Heart rate patterns
+    const hrPatterns = [
+      /(?:heart rate|pulse|hr)\s+(?:is\s+)?(\d{2,3})/i,
+      /(\d{2,3})\s+(?:beats per minute|bpm)/i
+    ];
+    
+    for (const pattern of hrPatterns) {
+      const match = text.match(pattern);
+      if (match && !metrics.blood_pressure?.includes(match[1])) {
+        metrics.heart_rate = match[1];
+        addDebugInfo(`Found heart rate: ${metrics.heart_rate}`);
+        break;
+      }
+    }
+
+    // Weight patterns
+    const weightPatterns = [
+      /(?:weight|weigh)\s+(?:is\s+)?(\d{2,3}(?:\.\d+)?)/i,
+      /(\d{2,3}(?:\.\d+)?)\s+(?:pounds|lbs|kilograms|kg)/i
+    ];
+    
+    for (const pattern of weightPatterns) {
+      const match = text.match(pattern);
+      if (match) {
+        metrics.weight = match[1];
+        addDebugInfo(`Found weight: ${metrics.weight}`);
+        break;
+      }
+    }
+
+    // Blood glucose patterns
+    const bgPatterns = [
+      /(?:blood glucose|blood sugar|glucose|sugar)\s+(?:is\s+)?(\d{2,3})/i,
+      /(\d{2,3})\s+(?:mg\/dl|milligrams)/i
+    ];
+    
+    for (const pattern of bgPatterns) {
+      const match = text.match(pattern);
+      if (match && !Object.values(metrics).includes(match[1])) {
+        metrics.blood_glucose = match[1];
+        addDebugInfo(`Found blood glucose: ${metrics.blood_glucose}`);
+        break;
+      }
+    }
+
+    // Temperature patterns
+    const tempPatterns = [
+      /(?:temperature|temp)\s+(?:is\s+)?(\d{2,3}(?:\.\d+)?)/i,
+      /(\d{2,3}(?:\.\d+)?)\s+(?:degrees|fahrenheit|celsius)/i
+    ];
+    
+    for (const pattern of tempPatterns) {
+      const match = text.match(pattern);
+      if (match && !Object.values(metrics).includes(match[1])) {
+        metrics.temperature = match[1];
+        addDebugInfo(`Found temperature: ${metrics.temperature}`);
+        break;
+      }
+    }
+
+    const metricsCount = Object.keys(metrics).length;
+    addDebugInfo(`Parsing complete: ${metricsCount} metrics found`);
+    
+    return metrics;
   };
 
   const handleMicPress = async () => {
-    return Sentry.startSpan(
-      {
-        op: "ui.voice.entry",
-        name: "Voice Health Entry Process",
-      },
-      async (span) => {
-        logger.info('Voice mic button pressed', { currentState: recordingState });
+    addDebugInfo('Mic button pressed');
 
-        // Check premium access
-        if (!premiumFeatures.voiceEntryForHealthMetrics) {
-          span.setAttribute("premium_required", true);
-          logger.warn('Voice entry attempted without premium subscription');
-          alert('Voice entry requires Premium subscription. Please upgrade to use this feature.');
-          return;
-        }
+    // Check premium access
+    if (!premiumFeatures.voiceEntryForHealthMetrics) {
+      addDebugInfo('Premium required - showing alert');
+      alert('Voice entry requires Premium subscription. Please upgrade to use this feature.');
+      return;
+    }
 
-        // Prevent multiple recordings
-        if (recordingState !== 'idle' && recordingState !== 'error') {
-          logger.debug('Recording already in progress, ignoring button press', { currentState: recordingState });
-          return;
-        }
+    // Prevent multiple recordings
+    if (voiceState !== 'idle' && voiceState !== 'error') {
+      addDebugInfo(`Recording blocked - current state: ${voiceState}`);
+      return;
+    }
 
-        // Clear any previous errors and reset states
-        setErrorMessage(null);
-        clearError();
-        resetStates();
+    // Clear previous errors
+    setErrorMessage(null);
+    setVoiceState('recording');
+    addDebugInfo('Starting recording process');
+    
+    // Animate mic button
+    Animated.sequence([
+      Animated.timing(scaleAnim, {
+        toValue: 1.2,
+        duration: 200,
+        useNativeDriver: false,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: false,
+      }),
+    ]).start();
+
+    try {
+      // Test microphone access first
+      addDebugInfo('Testing microphone access');
+      
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('Microphone access not supported in this browser');
+      }
+
+      // Request microphone permission
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      addDebugInfo('Microphone access granted');
+      
+      // Stop the test stream
+      stream.getTracks().forEach(track => track.stop());
+
+      // Now start actual recording
+      setVoiceState('processing');
+      addDebugInfo('Starting speech recognition');
+
+      // Use Web Speech API directly for better debugging
+      const transcript = await startWebSpeechRecognition();
+      
+      if (transcript && transcript.trim()) {
+        addDebugInfo(`Transcript received: "${transcript}"`);
         
-        // Start recording process
-        setRecordingState('recording');
+        const parsedMetrics = parseVoiceTranscriptForMetrics(transcript);
         
-        // Animate mic button
-        Animated.sequence([
-          Animated.timing(scaleAnim, {
-            toValue: 1.2,
-            duration: 200,
-            useNativeDriver: false,
-          }),
-          Animated.timing(scaleAnim, {
-            toValue: 1,
-            duration: 200,
-            useNativeDriver: false,
-          }),
-        ]).start();
-
-        try {
-          logger.info('Starting voice health entry recording');
+        if (Object.keys(parsedMetrics).length > 0) {
+          addDebugInfo('Metrics found - showing success');
+          setVoiceState('success');
           
-          const transcription = await startRecording();
-          
-          span.setAttribute("transcription_received", !!transcription.text);
-          span.setAttribute("transcription_length", transcription.text?.length || 0);
-          
-          if (transcription.text && transcription.text.trim()) {
-            logger.info('Transcription received, processing metrics', { 
-              transcript: transcription.text.substring(0, 100) 
-            });
-            
-            setRecordingState('processing');
-            
-            const parsedMetrics = parseVoiceTranscriptForMetrics(transcription.text);
-            
-            const metricsCount = Object.keys(parsedMetrics).length;
-            span.setAttribute("metrics_parsed", metricsCount);
-            
-            if (Object.keys(parsedMetrics).length > 0) {
-              logger.info('Voice health entry successful', { 
-                metricsCount,
-                metrics: Object.keys(parsedMetrics)
-              });
-              
-              setRecordingState('complete');
-              
-              // Small delay to show success state
-              setTimeout(() => {
-                onClose();
-                // Pass data to parent after modal closes
-                setTimeout(() => {
-                  onVoiceDataParsed(parsedMetrics);
-                }, 100);
-              }, 1000);
-            } else {
-              logger.warn('No health metrics detected in voice input', { 
-                transcript: transcription.text.substring(0, 100)
-              });
-              
-              setRecordingState('error');
-              setErrorMessage(`I heard: "${transcription.text}"\n\nBut I couldn't detect any health metrics. Please try again with phrases like "My blood pressure is 120 over 80" or "Heart rate 72 beats per minute".`);
-              
-              // Auto-reset to idle after showing error
-              setTimeout(() => {
-                setRecordingState('idle');
-                setErrorMessage(null);
-              }, 5000);
-            }
-          } else {
-            logger.warn('No transcription text received from voice input');
-            setRecordingState('error');
-            setErrorMessage('No speech detected. Please speak clearly and try again.');
-            
-            // Auto-reset to idle after showing error
-            setTimeout(() => {
-              setRecordingState('idle');
-              setErrorMessage(null);
-            }, 3000);
-          }
-        } catch (error) {
-          logger.error('Voice health entry error', { error: error instanceof Error ? error.message : 'Unknown error' });
-          Sentry.captureException(error);
-          
-          setRecordingState('error');
-          const errorMsg = error instanceof Error ? error.message : 'Voice recording failed. Please try again.';
-          setErrorMessage(errorMsg);
-          
-          // Auto-reset to idle after showing error
+          // Show success for a moment, then close and pass data
           setTimeout(() => {
-            setRecordingState('idle');
+            onClose();
+            setTimeout(() => {
+              onVoiceDataParsed(parsedMetrics);
+            }, 100);
+          }, 1000);
+        } else {
+          addDebugInfo('No metrics detected in transcript');
+          setVoiceState('error');
+          setErrorMessage(`I heard: "${transcript}"\n\nBut I couldn't detect any health metrics. Please try phrases like "My blood pressure is 120 over 80" or "Heart rate 72 beats per minute".`);
+          
+          // Auto-reset after error
+          setTimeout(() => {
+            setVoiceState('idle');
             setErrorMessage(null);
           }, 5000);
         }
+      } else {
+        addDebugInfo('No transcript received');
+        setVoiceState('error');
+        setErrorMessage('No speech detected. Please speak clearly and try again.');
+        
+        setTimeout(() => {
+          setVoiceState('idle');
+          setErrorMessage(null);
+        }, 3000);
       }
-    );
+    } catch (error) {
+      addDebugInfo(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      Sentry.captureException(error);
+      
+      setVoiceState('error');
+      let errorMsg = 'Voice recording failed. Please try again.';
+      
+      if (error instanceof Error) {
+        if (error.message.includes('denied') || error.message.includes('NotAllowedError')) {
+          errorMsg = 'Microphone access denied. Please allow microphone permissions and try again.';
+        } else if (error.message.includes('NotFoundError')) {
+          errorMsg = 'No microphone found. Please connect a microphone and try again.';
+        } else if (error.message.includes('not supported')) {
+          errorMsg = 'Voice recording is not supported in this browser. Please use Chrome, Edge, or Safari.';
+        } else {
+          errorMsg = error.message;
+        }
+      }
+      
+      setErrorMessage(errorMsg);
+      
+      // Auto-reset after error
+      setTimeout(() => {
+        setVoiceState('idle');
+        setErrorMessage(null);
+      }, 5000);
+    }
+  };
+
+  const startWebSpeechRecognition = (): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      addDebugInfo('Initializing Web Speech API');
+      
+      if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+        reject(new Error('Speech recognition not supported in this browser'));
+        return;
+      }
+
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const recognition = new SpeechRecognition();
+
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.lang = 'en-US';
+      recognition.maxAlternatives = 1;
+
+      let timeoutId: NodeJS.Timeout;
+
+      recognition.onstart = () => {
+        addDebugInfo('Speech recognition started');
+        // Set timeout for 10 seconds
+        timeoutId = setTimeout(() => {
+          addDebugInfo('Recognition timeout - stopping');
+          recognition.stop();
+        }, 10000);
+      };
+
+      recognition.onresult = (event) => {
+        if (timeoutId) clearTimeout(timeoutId);
+        const transcript = event.results[0][0].transcript;
+        const confidence = event.results[0][0].confidence;
+        addDebugInfo(`Recognition result: "${transcript}" (confidence: ${confidence})`);
+        resolve(transcript);
+      };
+
+      recognition.onerror = (event) => {
+        if (timeoutId) clearTimeout(timeoutId);
+        addDebugInfo(`Recognition error: ${event.error}`);
+        
+        let errorMessage = 'Speech recognition failed';
+        switch (event.error) {
+          case 'no-speech':
+            errorMessage = 'No speech detected. Please speak clearly and try again.';
+            break;
+          case 'audio-capture':
+            errorMessage = 'Microphone not accessible. Please check your microphone.';
+            break;
+          case 'not-allowed':
+            errorMessage = 'Microphone access denied. Please allow microphone permissions.';
+            break;
+          case 'network':
+            errorMessage = 'Network error. Please check your internet connection.';
+            break;
+        }
+        
+        reject(new Error(errorMessage));
+      };
+
+      recognition.onend = () => {
+        if (timeoutId) clearTimeout(timeoutId);
+        addDebugInfo('Speech recognition ended');
+      };
+
+      try {
+        addDebugInfo('Starting speech recognition');
+        recognition.start();
+      } catch (error) {
+        if (timeoutId) clearTimeout(timeoutId);
+        reject(new Error('Failed to start speech recognition'));
+      }
+    });
   };
 
   const getButtonText = () => {
-    switch (recordingState) {
+    switch (voiceState) {
       case 'recording':
-        return 'Recording... Speak now';
+        return 'Listening... Speak now';
       case 'processing':
         return 'Processing your speech...';
-      case 'complete':
+      case 'success':
         return 'Success! Opening form...';
       case 'error':
         return 'Error - Tap to try again';
       default:
         return premiumFeatures.voiceEntryForHealthMetrics 
           ? 'Tap to start recording'
-          : 'Premium feature - Upgrade to use voice entry';
+          : 'Premium feature - Upgrade required';
     }
   };
 
   const getButtonColor = () => {
-    switch (recordingState) {
+    switch (voiceState) {
       case 'recording':
         return '#EF4444'; // Red while recording
       case 'processing':
         return '#F59E0B'; // Orange while processing
-      case 'complete':
+      case 'success':
         return '#10B981'; // Green when complete
       case 'error':
-        return '#EF4444'; // Red for error (but clickable)
+        return '#EF4444'; // Red for error
       default:
         return premiumFeatures.voiceEntryForHealthMetrics ? '#10B981' : '#9CA3AF';
     }
   };
 
   const isButtonDisabled = () => {
-    // Only disable for non-premium users or during processing/complete states
     return !premiumFeatures.voiceEntryForHealthMetrics || 
-           recordingState === 'processing' || 
-           recordingState === 'complete';
-  };
-
-  const getCurrentError = () => {
-    return errorMessage || voiceError;
+           voiceState === 'processing' || 
+           voiceState === 'success';
   };
 
   return (
@@ -370,7 +396,7 @@ export function VoiceEntryModal({ visible, onClose, onVoiceDataParsed }: VoiceEn
               onPress={handleMicPress}
               disabled={isButtonDisabled()}
             >
-              {recordingState === 'recording' ? (
+              {voiceState === 'recording' ? (
                 <MicOff size={32} color="#ffffff" />
               ) : (
                 <Mic size={32} color="#ffffff" />
@@ -394,14 +420,25 @@ export function VoiceEntryModal({ visible, onClose, onVoiceDataParsed }: VoiceEn
           {!premiumFeatures.voiceEntryForHealthMetrics && (
             <View style={styles.premiumNotice}>
               <Text style={styles.premiumText}>
-                🔒 Voice entry requires Premium subscription. Upgrade to unlock unlimited voice features with high-quality speech recognition.
+                🔒 Voice entry requires Premium subscription. Upgrade to unlock unlimited voice features.
               </Text>
             </View>
           )}
 
-          {getCurrentError() && (
+          {errorMessage && (
             <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>{getCurrentError()}</Text>
+              <AlertCircle size={16} color="#DC2626" />
+              <Text style={styles.errorText}>{errorMessage}</Text>
+            </View>
+          )}
+
+          {/* Debug Information */}
+          {debugInfo.length > 0 && (
+            <View style={styles.debugContainer}>
+              <Text style={styles.debugTitle}>Debug Info:</Text>
+              {debugInfo.map((info, index) => (
+                <Text key={index} style={styles.debugText}>{info}</Text>
+              ))}
             </View>
           )}
 
@@ -429,6 +466,7 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 400,
     alignItems: 'center',
+    maxHeight: '90%',
   },
   title: {
     fontSize: 24,
@@ -463,7 +501,7 @@ const styles = StyleSheet.create({
   },
   examplesContainer: {
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 24,
   },
   examplesTitle: {
     fontSize: 16,
@@ -482,7 +520,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FEF3C7',
     padding: 12,
     borderRadius: 12,
-    marginBottom: 24,
+    marginBottom: 16,
   },
   premiumText: {
     fontSize: 14,
@@ -491,17 +529,40 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
     backgroundColor: '#FEE2E2',
     padding: 12,
     borderRadius: 12,
-    marginBottom: 24,
+    marginBottom: 16,
     maxWidth: '100%',
   },
   errorText: {
     fontSize: 14,
     color: '#DC2626',
-    textAlign: 'center',
     fontWeight: '500',
+    marginLeft: 8,
+    flex: 1,
+  },
+  debugContainer: {
+    backgroundColor: '#F3F4F6',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    width: '100%',
+    maxHeight: 120,
+  },
+  debugTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  debugText: {
+    fontSize: 10,
+    color: '#6B7280',
+    marginBottom: 2,
+    fontFamily: 'monospace',
   },
   cancelButton: {
     paddingHorizontal: 32,
