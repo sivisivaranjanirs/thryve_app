@@ -16,7 +16,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { useSubscription } from '@/hooks/useSubscription';
 import { useFeedback } from '@/hooks/useFeedback';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { AppHeader } from '@/components/AppHeader';
 
 export default function SettingsScreen() {
   const { user, profile, signOut, updateProfile } = useAuth();
@@ -647,7 +646,6 @@ export default function SettingsScreen() {
 
   return (
     <View style={styles.container}>
-      <AppHeader />
       
       <View style={styles.header}>
         <Text style={styles.title}>Settings</Text>

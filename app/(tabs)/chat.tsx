@@ -18,7 +18,6 @@ import { useVoice } from '@/hooks/useVoice';
 import { useVoiceChat } from '@/hooks/useVoiceChat';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { VoiceButton } from '@/components/VoiceButton';
-import { AppHeader } from '@/components/AppHeader';
 import { ChatMessage } from '@/lib/types';
 
 // Hardcoded AI responses for health topics
@@ -342,7 +341,6 @@ export default function ChatScreen() {
 
   return (
     <View style={styles.container}>
-      <AppHeader />
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Text style={styles.title}>Talk to me</Text>

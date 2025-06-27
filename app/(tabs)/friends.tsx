@@ -32,7 +32,6 @@ import { useReadingPermissions } from '@/hooks/useReadingPermissions';
 import { useUsers } from '@/hooks/useUsers';
 import { useHealthMetrics } from '@/hooks/useHealthMetrics';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { AppHeader } from '@/components/AppHeader';
 import { UserProfile, HealthMetric, MetricType } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
@@ -250,7 +249,6 @@ export default function FriendsScreen() {
   if (loading) {
     return (
       <View style={styles.container}>
-        <AppHeader />
         <View style={styles.loadingContainer}>
           <LoadingSpinner />
         </View>
@@ -266,10 +264,9 @@ export default function FriendsScreen() {
     <View style={styles.container}>
       <AppHeader />
 
-
       <ScrollView 
         style={styles.content} 
-        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 74 }]}
+        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 20 }]}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>

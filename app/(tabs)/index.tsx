@@ -25,8 +25,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { useHealthMetrics } from '@/hooks/useHealthMetrics';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { HealthMetricCard } from '@/components/HealthMetricCard';
-import { AppHeader } from '@/components/AppHeader';
-import { DebugPanel } from '@/components/DebugPanel';
 import Animated, { useSharedValue, useAnimatedScrollHandler } from 'react-native-reanimated';
 
 export default function DashboardScreen() {
@@ -92,7 +90,6 @@ export default function DashboardScreen() {
   if (loading && metrics.length === 0) {
     return (
       <View style={styles.container}>
-        <AppHeader scrollY={scrollY} />
         <View style={styles.loadingContainer}>
           <LoadingSpinner />
         </View>
@@ -102,12 +99,10 @@ export default function DashboardScreen() {
 
   return (
     <View style={styles.container}>
-      <AppHeader scrollY={scrollY} />
-      <DebugPanel />
       
       <Animated.ScrollView
         style={styles.scrollView}
-        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 74 }]}
+        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 20 }]}
         onScroll={scrollHandler}
         scrollEventThrottle={16}
         refreshControl={

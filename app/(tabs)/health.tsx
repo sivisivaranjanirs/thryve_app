@@ -27,7 +27,6 @@ import {
 import { useHealthMetrics } from '@/hooks/useHealthMetrics';
 import { useSubscription } from '@/hooks/useSubscription';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { AppHeader } from '@/components/AppHeader';
 import { VoiceEntryModal } from '@/components/VoiceEntryModal';
 import { MetricType, HealthMetricEntry } from '@/lib/types';
 import Animated, { useSharedValue, useAnimatedScrollHandler } from 'react-native-reanimated';
@@ -272,11 +271,10 @@ export default function HealthScreen() {
 
   return (
     <View style={styles.container}>
-      <AppHeader scrollY={scrollY} />
       
       <Animated.ScrollView 
         style={styles.scrollView}
-        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 74 }]}
+        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 20 }]}
         onScroll={scrollHandler}
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
