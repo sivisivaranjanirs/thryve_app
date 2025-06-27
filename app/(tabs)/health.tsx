@@ -332,11 +332,11 @@ export default function HealthScreen() {
                   size={16} 
                   color={isSelected ? '#ffffff' : config.color} 
                 />
-          onRequestClose={handleCloseAddModal}
+                <Text style={[
                   styles.metricTabText,
                   isSelected && styles.metricTabTextSelected
                 ]}>
-              <TouchableOpacity onPress={handleCloseAddModal}>
+                  {config.shortName}
                 </Text>
               </TouchableOpacity>
             );
