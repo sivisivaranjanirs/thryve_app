@@ -26,6 +26,7 @@ import { useHealthMetrics } from '@/hooks/useHealthMetrics';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { HealthMetricCard } from '@/components/HealthMetricCard';
 import { AppHeader } from '@/components/AppHeader';
+import { DebugPanel } from '@/components/DebugPanel';
 import Animated, { useSharedValue, useAnimatedScrollHandler } from 'react-native-reanimated';
 
 export default function DashboardScreen() {
@@ -101,6 +102,7 @@ export default function DashboardScreen() {
   return (
     <View style={styles.container}>
       <AppHeader scrollY={scrollY} />
+      <DebugPanel />
       
       <Animated.ScrollView
         style={styles.scrollView}
