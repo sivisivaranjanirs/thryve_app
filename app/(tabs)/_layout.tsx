@@ -1,25 +1,13 @@
 import { Tabs } from 'expo-router';
 import { Chrome as Home, Activity, MessageSquare, Users, Settings } from 'lucide-react-native';
+import { AnimatedTabBar } from '@/components/AnimatedTabBar';
 
 export default function TabLayout() {
   return (
     <Tabs
+      tabBar={(props) => <AnimatedTabBar {...props} />}
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#3B82F6',
-        tabBarInactiveTintColor: '#9CA3AF',
-        tabBarStyle: {
-          backgroundColor: '#ffffff',
-          borderTopWidth: 1,
-          borderTopColor: '#E5E7EB',
-          paddingBottom: 8,
-          paddingTop: 8,
-          height: 70,
-        },
-        tabBarLabelStyle: {
-          fontSize: 12,
-          fontWeight: '500',
-        },
       }}
     >
       <Tabs.Screen

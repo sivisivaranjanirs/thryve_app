@@ -18,6 +18,9 @@ import { useVoice } from '@/hooks/useVoice';
 import { useVoiceChat } from '@/hooks/useVoiceChat';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { VoiceButton } from '@/components/VoiceButton';
+import { AnimatedView, StaggeredList } from '@/components/AnimatedView';
+import { AnimatedButton, FloatingActionButton } from '@/components/AnimatedButton';
+import { AnimatedModal } from '@/components/AnimatedModal';
 import { ChatMessage } from '@/lib/types';
 
 // Hardcoded AI responses for health topics
@@ -142,6 +145,7 @@ export default function ChatScreen() {
       return responses[Math.floor(Math.random() * responses.length)];
     } else if (message.includes('heart rate') || message.includes('pulse')) {
       const responses = AI_RESPONSES.heart_rate;
+      
       return responses[Math.floor(Math.random() * responses.length)];
     } else if (message.includes('weight') || message.includes('scale')) {
       const responses = AI_RESPONSES.weight;
@@ -331,43 +335,47 @@ export default function ChatScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.loadingContainer}>
-          <LoadingSpinner />
+          <LoadingSpinner type="pulse" />
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Text style={styles.title}>Talk to me</Text>
-          <Text style={styles.subtitle}>Your AI health companion</Text>
+      <AnimatedView type="slideDown" delay={100}>
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <Text style={styles.title}>Talk to me</Text>
+            <Text style={styles.subtitle}>Your AI health companion</Text>
+          </View>
+          <View style={styles.headerActions}>
+            <AnimatedButton
+              style={styles.historyButton}
+              onPress={() => setShowHistoryModal(true)}
+            >
+              <History size={20} color="#3B82F6" />
+            </AnimatedButton>
+            <AnimatedButton
+              style={styles.newChatButton}
+              onPress={handleNewConversation}
+            >
+              <Plus size={20} color="#ffffff" />
+            </AnimatedButton>
+          </View>
         </View>
-        <View style={styles.headerActions}>
-          <TouchableOpacity
-            style={styles.historyButton}
-            onPress={() => setShowHistoryModal(true)}
-          >
-            <History size={20} color="#3B82F6" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.newChatButton}
-            onPress={handleNewConversation}
-          >
-            <Plus size={20} color="#ffffff" />
-          </TouchableOpacity>
-        </View>
-      </View>
+      </AnimatedView>
       
       {!premiumFeatures.unlimitedAIConversations && (
-        <View style={styles.messageCountContainer}>
-          <Text style={styles.messageCount}>
-            {remainingMessages} messages left today
-          </Text>
-        </View>
+        <AnimatedView type="slideDown" delay={150}>
+          <View style={styles.messageCountContainer}>
+            <Text style={styles.messageCount}>
+              {remainingMessages} messages left today
+            </Text>
+          </View>
+        </AnimatedView>
       )}
 
       <ScrollView
@@ -376,113 +384,120 @@ export default function ChatScreen() {
         contentContainerStyle={styles.messagesContent}
         showsVerticalScrollIndicator={false}
       >
-        {messages.map((message) => (
-          <View
-            key={message.id}
-            style={[
-              styles.messageContainer,
-              message.message_type === 'user' ? styles.userMessage : styles.assistantMessage,
-            ]}
-          >
+        <StaggeredList staggerDelay={150} itemDelay={200}>
+          {messages.map((message) => (
             <View
+              key={message.id}
               style={[
-                styles.messageBubble,
-                message.message_type === 'user' ? styles.userBubble : styles.assistantBubble,
+                styles.messageContainer,
+                message.message_type === 'user' ? styles.userMessage : styles.assistantMessage,
               ]}
             >
-              <Text
+              <View
                 style={[
-                  styles.messageText,
-                  message.message_type === 'user' ? styles.userText : styles.assistantText,
+                  styles.messageBubble,
+                  message.message_type === 'user' ? styles.userBubble : styles.assistantBubble,
                 ]}
               >
-                {message.content}
-              </Text>
-              {message.is_voice && (
-                <View style={styles.voiceIndicator}>
-                  <Mic size={12} color={message.message_type === 'user' ? '#ffffff' : '#3B82F6'} />
-                </View>
-              )}
-            </View>
-            
-            <View style={styles.messageFooter}>
-              <Text style={styles.messageTime}>{formatTime(message.created_at)}</Text>
-              {message.message_type === 'assistant' && Platform.OS !== 'web' && (
-                <TouchableOpacity
-                  style={styles.speakButton}
-                  onPress={() => handleTextToSpeech(message.id, message.content)}
-                  disabled={isPlaying || voiceProcessing}
+                <Text
+                  style={[
+                    styles.messageText,
+                    message.message_type === 'user' ? styles.userText : styles.assistantText,
+                  ]}
                 >
-                  {isPlaying ? (
-                    <VolumeX size={14} color="#6B7280" />
-                  ) : (
-                    <Volume2 size={14} color="#6B7280" />
-                  )}
-                </TouchableOpacity>
-              )}
+                  {message.content}
+                </Text>
+                {message.is_voice && (
+                  <View style={styles.voiceIndicator}>
+                    <Mic size={12} color={message.message_type === 'user' ? '#ffffff' : '#3B82F6'} />
+                  </View>
+                )}
+              </View>
+              
+              <View style={styles.messageFooter}>
+                <Text style={styles.messageTime}>{formatTime(message.created_at)}</Text>
+                {message.message_type === 'assistant' && Platform.OS !== 'web' && (
+                  <AnimatedButton
+                    style={styles.speakButton}
+                    onPress={() => handleTextToSpeech(message.id, message.content)}
+                    disabled={isPlaying || voiceProcessing}
+                    pressScale={0.9}
+                  >
+                    {isPlaying ? (
+                      <VolumeX size={14} color="#6B7280" />
+                    ) : (
+                      <Volume2 size={14} color="#6B7280" />
+                    )}
+                  </AnimatedButton>
+                )}
+              </View>
             </View>
-          </View>
-        ))}
+          ))}
+        </StaggeredList>
         
         {isProcessing && (
-          <View style={[styles.messageContainer, styles.assistantMessage]}>
-            <View style={[styles.messageBubble, styles.assistantBubble]}>
-              <LoadingSpinner size="small" color="#3B82F6" />
+          <AnimatedView type="fade">
+            <View style={[styles.messageContainer, styles.assistantMessage]}>
+              <View style={[styles.messageBubble, styles.assistantBubble]}>
+                <LoadingSpinner size="small" color="#3B82F6" type="dots" />
+              </View>
             </View>
-          </View>
+          </AnimatedView>
         )}
       </ScrollView>
 
-      <View style={styles.inputContainer}>
-        <View style={styles.inputWrapper}>
-          <TextInput
-            style={styles.textInput}
-            value={inputText}
-            onChangeText={setInputText}
-            placeholder="Ask me about your health..."
-            placeholderTextColor="#9CA3AF"
-            multiline
-            maxLength={500}
-            editable={!isProcessing}
-          />
-          
-          <VoiceButton
-            variant="record"
-            isRecording={isRecording}
-            isProcessing={voiceProcessing}
-            recordingProgress={0} // We'll implement this in the hook
-            showProgress={isRecording}
-            onPress={handleVoiceInput}
-            disabled={isProcessing || voiceProcessing}
-            style={styles.voiceButton}
-          />
-          
-          <TouchableOpacity
-            style={[styles.sendButton, (!inputText.trim() || isProcessing) && styles.sendButtonDisabled]}
-            onPress={() => sendMessage(inputText)}
-            disabled={!inputText.trim() || isProcessing || voiceProcessing}
-          >
-            <Send size={20} color="#ffffff" />
-          </TouchableOpacity>
+      <AnimatedView type="slideUp" delay={300}>
+        <View style={styles.inputContainer}>
+          <View style={styles.inputWrapper}>
+            <TextInput
+              style={styles.textInput}
+              value={inputText}
+              onChangeText={setInputText}
+              placeholder="Ask me about your health..."
+              placeholderTextColor="#9CA3AF"
+              multiline
+              maxLength={500}
+              editable={!isProcessing}
+            />
+            
+            <VoiceButton
+              variant="record"
+              isRecording={isRecording}
+              isProcessing={voiceProcessing}
+              recordingProgress={0} // We'll implement this in the hook
+              showProgress={isRecording}
+              onPress={handleVoiceInput}
+              disabled={isProcessing || voiceProcessing}
+              style={styles.voiceButton}
+            />
+            
+            <AnimatedButton
+              style={[styles.sendButton, (!inputText.trim() || isProcessing) && styles.sendButtonDisabled]}
+              onPress={() => sendMessage(inputText)}
+              disabled={!inputText.trim() || isProcessing || voiceProcessing}
+              pressScale={0.9}
+            >
+              <Send size={20} color="#ffffff" />
+            </AnimatedButton>
+          </View>
         </View>
-      </View>
+      </AnimatedView>
 
       {/* Chat History Modal */}
-      <Modal
+      <AnimatedModal
         visible={showHistoryModal}
         animationType="slide"
-        presentationStyle="pageSheet"
         onRequestClose={() => setShowHistoryModal(false)}
       >
         <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setShowHistoryModal(false)}>
+            <AnimatedButton onPress={() => setShowHistoryModal(false)}>
               <X size={24} color="#6B7280" />
-            </TouchableOpacity>
+            </AnimatedButton>
             <Text style={styles.modalTitle}>Chat History</Text>
-            <TouchableOpacity onPress={handleNewConversation}>
+            <AnimatedButton onPress={handleNewConversation}>
               <Plus size={24} color="#3B82F6" />
-            </TouchableOpacity>
+            </AnimatedButton>
           </View>
 
           <ScrollView style={styles.modalContent}>
@@ -495,40 +510,44 @@ export default function ChatScreen() {
                 </Text>
               </View>
             ) : (
-              conversations.map((conversation) => (
-                <TouchableOpacity
-                  key={conversation.id}
-                  style={[
-                    styles.conversationItem,
-                    currentConversation?.id === conversation.id && styles.conversationItemActive
-                  ]}
-                  onPress={() => handleSelectConversation(conversation)}
-                >
-                  <View style={styles.conversationHeader}>
-                    <View style={styles.conversationIcon}>
-                      <MessageSquare size={16} color="#3B82F6" />
+              <StaggeredList staggerDelay={50} itemDelay={0}>
+                {conversations.map((conversation) => (
+                  <AnimatedButton
+                    key={conversation.id}
+                    style={[
+                      styles.conversationItem,
+                      currentConversation?.id === conversation.id && styles.conversationItemActive
+                    ]}
+                    onPress={() => handleSelectConversation(conversation)}
+                    pressScale={0.98}
+                  >
+                    <View style={styles.conversationHeader}>
+                      <View style={styles.conversationIcon}>
+                        <MessageSquare size={16} color="#3B82F6" />
+                      </View>
+                      <View style={styles.conversationInfo}>
+                        <Text style={styles.conversationTitle} numberOfLines={1}>
+                          {conversation.title}
+                        </Text>
+                        <Text style={styles.conversationDate}>
+                          {formatHistoryDate(conversation.updated_at)}
+                        </Text>
+                      </View>
+                      <AnimatedButton
+                        style={styles.deleteConversationButton}
+                        onPress={() => handleDeleteConversation(conversation.id, conversation.title)}
+                        pressScale={0.9}
+                      >
+                        <Trash2 size={16} color="#EF4444" />
+                      </AnimatedButton>
                     </View>
-                    <View style={styles.conversationInfo}>
-                      <Text style={styles.conversationTitle} numberOfLines={1}>
-                        {conversation.title}
-                      </Text>
-                      <Text style={styles.conversationDate}>
-                        {formatHistoryDate(conversation.updated_at)}
-                      </Text>
-                    </View>
-                    <TouchableOpacity
-                      style={styles.deleteConversationButton}
-                      onPress={() => handleDeleteConversation(conversation.id, conversation.title)}
-                    >
-                      <Trash2 size={16} color="#EF4444" />
-                    </TouchableOpacity>
-                  </View>
-                </TouchableOpacity>
-              ))
+                  </AnimatedButton>
+                ))}
+              </StaggeredList>
             )}
           </ScrollView>
         </SafeAreaView>
-      </Modal>
+      </AnimatedModal>
     </View>
   );
 }

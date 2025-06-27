@@ -24,7 +24,9 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { useHealthMetrics } from '@/hooks/useHealthMetrics';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { HealthMetricCard } from '@/components/HealthMetricCard';
+import { AnimatedHealthMetricCard } from '@/components/AnimatedHealthMetricCard';
+import { AnimatedView, StaggeredList } from '@/components/AnimatedView';
+import { AnimatedButton, FloatingActionButton } from '@/components/AnimatedButton';
 import Animated, { useSharedValue, useAnimatedScrollHandler } from 'react-native-reanimated';
 
 export default function DashboardScreen() {
@@ -91,7 +93,7 @@ export default function DashboardScreen() {
     return (
       <View style={styles.container}>
         <View style={styles.loadingContainer}>
-          <LoadingSpinner />
+          <LoadingSpinner type="pulse" />
         </View>
       </View>
     );
@@ -99,7 +101,6 @@ export default function DashboardScreen() {
 
   return (
     <View style={styles.container}>
-      
       <Animated.ScrollView
         style={styles.scrollView}
         contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 20 }]}
@@ -110,136 +111,165 @@ export default function DashboardScreen() {
         }
       >
         {/* Greeting Section */}
-        <View style={styles.greetingSection}>
-          <Text style={styles.greeting}>
-            {getTimeGreeting()}, {profile?.full_name?.split(' ')[0] || 'User'}
-          </Text>
-          <Text style={styles.subtitle}>How are you feeling today?</Text>
-        </View>
+        <AnimatedView type="slideUp" delay={100}>
+          <View style={styles.greetingSection}>
+            <Text style={styles.greeting}>
+              {getTimeGreeting()}, {profile?.full_name?.split(' ')[0] || 'User'}
+            </Text>
+            <Text style={styles.subtitle}>How are you feeling today?</Text>
+          </View>
+        </AnimatedView>
 
         {/* Quick Actions */}
-        <View style={styles.quickActions}>
-          <TouchableOpacity 
-            style={styles.primaryAction}
-            onPress={() => router.push('/(tabs)/chat')}
-          >
-            <MessageSquare size={20} color="#ffffff" />
-            <Text style={styles.primaryActionText}>Talk to me</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={styles.secondaryAction}
-            onPress={() => router.push('/(tabs)/health')}
-          >
-            <Plus size={20} color="#3B82F6" />
-            <Text style={styles.secondaryActionText}>Add Reading</Text>
-          </TouchableOpacity>
-        </View>
+        <AnimatedView type="slideUp" delay={200}>
+          <View style={styles.quickActions}>
+            <AnimatedButton 
+              style={styles.primaryAction}
+              onPress={() => router.push('/(tabs)/chat')}
+            >
+              <MessageSquare size={20} color="#ffffff" />
+              <Text style={styles.primaryActionText}>Talk to me</Text>
+            </AnimatedButton>
+            
+            <AnimatedButton 
+              style={styles.secondaryAction}
+              onPress={() => router.push('/(tabs)/health')}
+            >
+              <Plus size={20} color="#3B82F6" />
+              <Text style={styles.secondaryActionText}>Add Reading</Text>
+            </AnimatedButton>
+          </View>
+        </AnimatedView>
 
         {/* Health Overview */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Health Overview</Text>
-          
-          <View style={styles.metricsGrid}>
-            <HealthMetricCard
-              title="Blood Pressure"
-              value={latestBP?.value || '--'}
-              unit={latestBP?.unit || 'mmHg'}
-              icon={<Heart size={18} color="#EF4444" />}
-              trend={getTrendIcon(bpStats.trend)}
-              trendColor={getTrendColor(bpStats.trend)}
-              date={latestBP?.recorded_at}
-              style={styles.metricCard}
-            />
+        <AnimatedView type="slideUp" delay={300}>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Health Overview</Text>
             
-            <HealthMetricCard
-              title="Heart Rate"
-              value={latestHeartRate?.value || '--'}
-              unit={latestHeartRate?.unit || 'bpm'}
-              icon={<Heart size={18} color="#F59E0B" />}
-              trend={getTrendIcon(heartRateStats.trend)}
-              trendColor={getTrendColor(heartRateStats.trend)}
-              date={latestHeartRate?.recorded_at}
-              style={styles.metricCard}
-            />
-            
-            <HealthMetricCard
-              title="Blood Glucose"
-              value={latestGlucose?.value || '--'}
-              unit={latestGlucose?.unit || 'mg/dL'}
-              icon={<Droplets size={18} color="#3B82F6" />}
-              trend={getTrendIcon(glucoseStats.trend)}
-              trendColor={getTrendColor(glucoseStats.trend)}
-              date={latestGlucose?.recorded_at}
-              style={styles.metricCard}
-            />
-            
-            <HealthMetricCard
-              title="Weight"
-              value={latestWeight?.value || '--'}
-              unit={latestWeight?.unit || 'lbs'}
-              icon={<Scale size={18} color="#8B5CF6" />}
-              trend={getTrendIcon(weightStats.trend)}
-              trendColor={getTrendColor(weightStats.trend)}
-              date={latestWeight?.recorded_at}
-              style={styles.metricCard}
-            />
+            <View style={styles.metricsGrid}>
+              <StaggeredList staggerDelay={100} itemDelay={400}>
+                <AnimatedHealthMetricCard
+                  title="Blood Pressure"
+                  value={latestBP?.value || '--'}
+                  unit={latestBP?.unit || 'mmHg'}
+                  icon={<Heart size={18} color="#EF4444" />}
+                  trend={getTrendIcon(bpStats.trend)}
+                  trendColor={getTrendColor(bpStats.trend)}
+                  date={latestBP?.recorded_at}
+                  style={styles.metricCard}
+                  onPress={() => router.push('/(tabs)/health')}
+                />
+                
+                <AnimatedHealthMetricCard
+                  title="Heart Rate"
+                  value={latestHeartRate?.value || '--'}
+                  unit={latestHeartRate?.unit || 'bpm'}
+                  icon={<Heart size={18} color="#F59E0B" />}
+                  trend={getTrendIcon(heartRateStats.trend)}
+                  trendColor={getTrendColor(heartRateStats.trend)}
+                  date={latestHeartRate?.recorded_at}
+                  style={styles.metricCard}
+                  onPress={() => router.push('/(tabs)/health')}
+                />
+                
+                <AnimatedHealthMetricCard
+                  title="Blood Glucose"
+                  value={latestGlucose?.value || '--'}
+                  unit={latestGlucose?.unit || 'mg/dL'}
+                  icon={<Droplets size={18} color="#3B82F6" />}
+                  trend={getTrendIcon(glucoseStats.trend)}
+                  trendColor={getTrendColor(glucoseStats.trend)}
+                  date={latestGlucose?.recorded_at}
+                  style={styles.metricCard}
+                  onPress={() => router.push('/(tabs)/health')}
+                />
+                
+                <AnimatedHealthMetricCard
+                  title="Weight"
+                  value={latestWeight?.value || '--'}
+                  unit={latestWeight?.unit || 'lbs'}
+                  icon={<Scale size={18} color="#8B5CF6" />}
+                  trend={getTrendIcon(weightStats.trend)}
+                  trendColor={getTrendColor(weightStats.trend)}
+                  date={latestWeight?.recorded_at}
+                  style={styles.metricCard}
+                  onPress={() => router.push('/(tabs)/health')}
+                />
+              </StaggeredList>
+            </View>
           </View>
-        </View>
+        </AnimatedView>
 
         {/* Recent Activity */}
         {metrics.length > 0 && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Recent Activity</Text>
-              <TouchableOpacity onPress={() => router.push('/(tabs)/health')}>
-                <Text style={styles.seeAllText}>View All</Text>
-              </TouchableOpacity>
-            </View>
-            
-            {metrics.slice(0, 3).map((metric) => (
-              <View key={metric.id} style={styles.activityItem}>
-                <View style={styles.activityIcon}>
-                  {metric.metric_type === 'blood_pressure' && <Heart size={14} color="#EF4444" />}
-                  {metric.metric_type === 'blood_glucose' && <Droplets size={14} color="#3B82F6" />}
-                  {metric.metric_type === 'heart_rate' && <Heart size={14} color="#F59E0B" />}
-                  {metric.metric_type === 'temperature' && <Thermometer size={14} color="#F97316" />}
-                  {metric.metric_type === 'weight' && <Scale size={14} color="#8B5CF6" />}
-                </View>
-                <View style={styles.activityContent}>
-                  <Text style={styles.activityTitle}>
-                    {metric.metric_type.replace('_', ' ').toUpperCase()}
-                  </Text>
-                  <Text style={styles.activityValue}>
-                    {metric.value} {metric.unit}
-                  </Text>
-                  <Text style={styles.activityTime}>
-                    {new Date(metric.recorded_at).toLocaleDateString()}
-                  </Text>
-                </View>
+          <AnimatedView type="slideUp" delay={800}>
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Recent Activity</Text>
+                <TouchableOpacity onPress={() => router.push('/(tabs)/health')}>
+                  <Text style={styles.seeAllText}>View All</Text>
+                </TouchableOpacity>
               </View>
-            ))}
-          </View>
+              
+              <StaggeredList staggerDelay={100} itemDelay={900}>
+                {metrics.slice(0, 3).map((metric) => (
+                  <View key={metric.id} style={styles.activityItem}>
+                    <View style={styles.activityIcon}>
+                      {metric.metric_type === 'blood_pressure' && <Heart size={14} color="#EF4444" />}
+                      {metric.metric_type === 'blood_glucose' && <Droplets size={14} color="#3B82F6" />}
+                      {metric.metric_type === 'heart_rate' && <Heart size={14} color="#F59E0B" />}
+                      {metric.metric_type === 'temperature' && <Thermometer size={14} color="#F97316" />}
+                      {metric.metric_type === 'weight' && <Scale size={14} color="#8B5CF6" />}
+                    </View>
+                    <View style={styles.activityContent}>
+                      <Text style={styles.activityTitle}>
+                        {metric.metric_type.replace('_', ' ').toUpperCase()}
+                      </Text>
+                      <Text style={styles.activityValue}>
+                        {metric.value} {metric.unit}
+                      </Text>
+                      <Text style={styles.activityTime}>
+                        {new Date(metric.recorded_at).toLocaleDateString()}
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+              </StaggeredList>
+            </View>
+          </AnimatedView>
         )}
 
         {/* Empty State */}
         {metrics.length === 0 && (
-          <View style={styles.emptyState}>
-            <Activity size={64} color="#E5E7EB" />
-            <Text style={styles.emptyStateTitle}>Start Your Health Journey</Text>
-            <Text style={styles.emptyStateText}>
-              Begin tracking your health metrics to see insights and trends
-            </Text>
-            <TouchableOpacity 
-              style={styles.getStartedButton}
-              onPress={() => router.push('/(tabs)/health')}
-            >
-              <Plus size={18} color="#ffffff" />
-              <Text style={styles.getStartedText}>Add First Reading</Text>
-            </TouchableOpacity>
-          </View>
+          <AnimatedView type="scale" delay={500}>
+            <View style={styles.emptyState}>
+              <Activity size={64} color="#E5E7EB" />
+              <Text style={styles.emptyStateTitle}>Start Your Health Journey</Text>
+              <Text style={styles.emptyStateText}>
+                Begin tracking your health metrics to see insights and trends
+              </Text>
+              <AnimatedButton 
+                style={styles.getStartedButton}
+                onPress={() => router.push('/(tabs)/health')}
+              >
+                <Plus size={18} color="#ffffff" />
+                <Text style={styles.getStartedText}>Add First Reading</Text>
+              </AnimatedButton>
+            </View>
+          </AnimatedView>
         )}
       </Animated.ScrollView>
+
+      {/* Floating Action Button */}
+      <View style={styles.fabContainer}>
+        <FloatingActionButton
+          onPress={() => router.push('/(tabs)/chat')}
+          backgroundColor="#3B82F6"
+          shadowColor="#3B82F6"
+        >
+          <MessageSquare size={24} color="#ffffff" />
+        </FloatingActionButton>
+      </View>
     </View>
   );
 }
@@ -426,5 +456,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#ffffff',
+  },
+  fabContainer: {
+    position: 'absolute',
+    bottom: 90,
+    right: 24,
   },
 });

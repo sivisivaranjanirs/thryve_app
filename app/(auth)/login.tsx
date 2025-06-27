@@ -15,6 +15,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Eye, EyeOff, Heart } from 'lucide-react-native';
 import { useAuth } from '@/hooks/useAuth';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { AnimatedView } from '@/components/AnimatedView';
+import { AnimatedButton } from '@/components/AnimatedButton';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withTiming,
+  withSequence,
+  Easing,
+} from 'react-native-reanimated';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -23,6 +33,42 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const { signIn } = useAuth();
   const router = useRouter();
+
+  // Animation values
+  const logoScale = useSharedValue(1);
+  const logoRotate = useSharedValue(0);
+
+  // Start logo animation
+  React.useEffect(() => {
+    // Subtle pulse animation
+    logoScale.value = withRepeat(
+      withSequence(
+        withTiming(1.05, { duration: 1000, easing: Easing.inOut(Easing.ease) }),
+        withTiming(1, { duration: 1000, easing: Easing.inOut(Easing.ease) })
+      ),
+      -1,
+      true
+    );
+    
+    // Very subtle rotation
+    logoRotate.value = withRepeat(
+      withSequence(
+        withTiming(0.05, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
+        withTiming(-0.05, { duration: 2000, easing: Easing.inOut(Easing.ease) })
+      ),
+      -1,
+      true
+    );
+  }, []);
+
+  const logoAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [
+        { scale: logoScale.value },
+        { rotate: `${logoRotate.value}rad` }
+      ],
+    };
+  });
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
@@ -53,76 +99,80 @@ export default function LoginScreen() {
         style={styles.keyboardContainer}
       >
         <ScrollView contentContainerStyle={styles.scrollContainer}>
-          <View style={styles.header}>
-            <View style={styles.logoContainer}>
-              <Heart size={48} color="#14B8A6" />
+          <AnimatedView type="slideDown" delay={100}>
+            <View style={styles.header}>
+              <Animated.View style={[styles.logoContainer, logoAnimatedStyle]}>
+                <Heart size={48} color="#14B8A6" />
+              </Animated.View>
+              <Text style={styles.title}>Welcome to Thryve</Text>
+              <Text style={styles.subtitle}>Your Personal Health Companion</Text>
             </View>
-            <Text style={styles.title}>Welcome to Thryve</Text>
-            <Text style={styles.subtitle}>Your Personal Health Companion</Text>
-          </View>
+          </AnimatedView>
 
-          <View style={styles.formContainer}>
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Email</Text>
-              <TextInput
-                style={styles.input}
-                value={email}
-                onChangeText={setEmail}
-                placeholder="Enter your email"
-                placeholderTextColor="#9CA3AF"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-            </View>
-
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Password</Text>
-              <View style={styles.passwordContainer}>
+          <AnimatedView type="slideUp" delay={300}>
+            <View style={styles.formContainer}>
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Email</Text>
                 <TextInput
-                  style={styles.passwordInput}
-                  value={password}
-                  onChangeText={setPassword}
-                  placeholder="Enter your password"
+                  style={styles.input}
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholder="Enter your email"
                   placeholderTextColor="#9CA3AF"
-                  secureTextEntry={!showPassword}
+                  keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
                 />
-                <TouchableOpacity
-                  style={styles.eyeButton}
-                  onPress={() => setShowPassword(!showPassword)}
-                >
-                  {showPassword ? (
-                    <EyeOff size={20} color="#9CA3AF" />
-                  ) : (
-                    <Eye size={20} color="#9CA3AF" />
-                  )}
-                </TouchableOpacity>
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Password</Text>
+                <View style={styles.passwordContainer}>
+                  <TextInput
+                    style={styles.passwordInput}
+                    value={password}
+                    onChangeText={setPassword}
+                    placeholder="Enter your password"
+                    placeholderTextColor="#9CA3AF"
+                    secureTextEntry={!showPassword}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  <TouchableOpacity
+                    style={styles.eyeButton}
+                    onPress={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? (
+                      <EyeOff size={20} color="#9CA3AF" />
+                    ) : (
+                      <Eye size={20} color="#9CA3AF" />
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <AnimatedButton
+                style={[styles.loginButton, loading && styles.loginButtonDisabled]}
+                onPress={handleLogin}
+                disabled={loading}
+              >
+                {loading ? (
+                  <LoadingSpinner size="small" color="#ffffff" />
+                ) : (
+                  <Text style={styles.loginButtonText}>Sign In</Text>
+                )}
+              </AnimatedButton>
+
+              <View style={styles.signupContainer}>
+                <Text style={styles.signupText}>Don't have an account? </Text>
+                <Link href="/(auth)/register" asChild>
+                  <TouchableOpacity>
+                    <Text style={styles.signupLink}>Sign Up</Text>
+                  </TouchableOpacity>
+                </Link>
               </View>
             </View>
-
-            <TouchableOpacity
-              style={[styles.loginButton, loading && styles.loginButtonDisabled]}
-              onPress={handleLogin}
-              disabled={loading}
-            >
-              {loading ? (
-                <LoadingSpinner size="small" color="#ffffff" />
-              ) : (
-                <Text style={styles.loginButtonText}>Sign In</Text>
-              )}
-            </TouchableOpacity>
-
-            <View style={styles.signupContainer}>
-              <Text style={styles.signupText}>Don't have an account? </Text>
-              <Link href="/(auth)/register" asChild>
-                <TouchableOpacity>
-                  <Text style={styles.signupLink}>Sign Up</Text>
-                </TouchableOpacity>
-              </Link>
-            </View>
-          </View>
+          </AnimatedView>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

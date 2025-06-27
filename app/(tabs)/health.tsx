@@ -28,6 +28,9 @@ import { useHealthMetrics } from '@/hooks/useHealthMetrics';
 import { useSubscription } from '@/hooks/useSubscription';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { VoiceEntryModal } from '@/components/VoiceEntryModal';
+import { AnimatedView, StaggeredList } from '@/components/AnimatedView';
+import { AnimatedButton, FloatingActionButton } from '@/components/AnimatedButton';
+import { AnimatedModal } from '@/components/AnimatedModal';
 import { MetricType, HealthMetricEntry } from '@/lib/types';
 import Animated, { useSharedValue, useAnimatedScrollHandler } from 'react-native-reanimated';
 
@@ -240,15 +243,6 @@ export default function HealthScreen() {
     }));
   };
 
-  const handleCloseAddModal = () => {
-    setShowAddModal(false);
-    // Don't reset form data immediately to preserve user input
-  };
-
-  const handleCloseVoiceModal = () => {
-    setShowVoiceModal(false);
-  };
-
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
@@ -269,6 +263,15 @@ export default function HealthScreen() {
     return getMetricsByType(selectedMetric).slice(0, 5);
   };
 
+  const handleCloseAddModal = () => {
+    setShowAddModal(false);
+    // Don't reset form data immediately to preserve user input
+  };
+
+  const handleCloseVoiceModal = () => {
+    setShowVoiceModal(false);
+  };
+
   return (
     <View style={styles.container}>
       
@@ -280,163 +283,189 @@ export default function HealthScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Header Section */}
-        <View style={styles.headerSection}>
-          <Text style={styles.title}>Health Tracking</Text>
-          <Text style={styles.subtitle}>Monitor your health metrics</Text>
-        </View>
+        <AnimatedView type="slideUp" delay={100}>
+          <View style={styles.headerSection}>
+            <Text style={styles.title}>Health Tracking</Text>
+            <Text style={styles.subtitle}>Monitor your health metrics</Text>
+          </View>
+        </AnimatedView>
 
         {/* Add Reading Button */}
-        <View style={styles.actionSection}>
-          <View style={styles.actionButtons}>
-            <TouchableOpacity
-              style={styles.voiceEntryButton}
-              onPress={handleVoiceEntryModal}
-              disabled={false}
-            >
-              <Mic size={20} color="#3B82F6" />
-              <Text style={styles.voiceEntryButtonText}>Voice Entry</Text>
-              {!premiumFeatures.voiceEntryForHealthMetrics && (
-                <View style={styles.premiumBadge}>
-                  <Crown size={12} color="#F59E0B" />
-                </View>
-              )}
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={styles.addButton}
-              onPress={() => setShowAddModal(true)}
-            >
-              <Plus size={20} color="#ffffff" />
-              <Text style={styles.addButtonText}>Add Reading</Text>
-            </TouchableOpacity>
+        <AnimatedView type="slideUp" delay={200}>
+          <View style={styles.actionSection}>
+            <View style={styles.actionButtons}>
+              <AnimatedButton
+                style={styles.voiceEntryButton}
+                onPress={handleVoiceEntryModal}
+                disabled={false}
+              >
+                <Mic size={20} color="#3B82F6" />
+                <Text style={styles.voiceEntryButtonText}>Voice Entry</Text>
+                {!premiumFeatures.voiceEntryForHealthMetrics && (
+                  <View style={styles.premiumBadge}>
+                    <Crown size={12} color="#F59E0B" />
+                  </View>
+                )}
+              </AnimatedButton>
+              
+              <AnimatedButton
+                style={styles.addButton}
+                onPress={() => setShowAddModal(true)}
+              >
+                <Plus size={20} color="#ffffff" />
+                <Text style={styles.addButtonText}>Add Reading</Text>
+              </AnimatedButton>
+            </View>
           </View>
-        </View>
+        </AnimatedView>
 
         {/* Metric Type Tabs */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.metricTabs}>
-          {Object.entries(METRIC_CONFIGS).map(([type, config]) => {
-            const IconComponent = config.icon;
-            const isSelected = selectedMetric === type;
-            
-            return (
-              <TouchableOpacity
-                key={type}
-                style={[
-                  styles.metricTab,
-                  isSelected && styles.metricTabSelected
-                ]}
-                onPress={() => setSelectedMetric(type as MetricType)}
-              >
-                <IconComponent 
-                  size={16} 
-                  color={isSelected ? '#ffffff' : config.color} 
-                />
-                <Text style={[
-                  styles.metricTabText,
-                  isSelected && styles.metricTabTextSelected
-                ]}>
-                  {config.shortName}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+        <AnimatedView type="slideUp" delay={300}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.metricTabs}>
+            {Object.entries(METRIC_CONFIGS).map(([type, config], index) => {
+              const IconComponent = config.icon;
+              const isSelected = selectedMetric === type;
+              
+              return (
+                <AnimatedButton
+                  key={type}
+                  style={[
+                    styles.metricTab,
+                    isSelected && styles.metricTabSelected
+                  ]}
+                  onPress={() => setSelectedMetric(type as MetricType)}
+                  pressScale={0.98}
+                >
+                  <IconComponent 
+                    size={16} 
+                    color={isSelected ? '#ffffff' : config.color} 
+                  />
+                  <Text style={[
+                    styles.metricTabText,
+                    isSelected && styles.metricTabTextSelected
+                  ]}>
+                    {config.shortName}
+                  </Text>
+                </AnimatedButton>
+              );
+            })}
+          </ScrollView>
+        </AnimatedView>
 
         {/* Latest Reading Card */}
-        {(() => {
-          const latest = getLatestReading();
-          const config = METRIC_CONFIGS[selectedMetric];
-          const IconComponent = config.icon;
-          
-          return (
-            <View style={styles.latestReadingCard}>
-              <View style={styles.latestReadingHeader}>
-                <View style={[styles.latestReadingIcon, { backgroundColor: `${config.color}15` }]}>
-                  <IconComponent size={24} color={config.color} />
+        <AnimatedView type="slideUp" delay={400}>
+          {(() => {
+            const latest = getLatestReading();
+            const config = METRIC_CONFIGS[selectedMetric];
+            const IconComponent = config.icon;
+            
+            return (
+              <View style={styles.latestReadingCard}>
+                <View style={styles.latestReadingHeader}>
+                  <View style={[styles.latestReadingIcon, { backgroundColor: `${config.color}15` }]}>
+                    <IconComponent size={24} color={config.color} />
+                  </View>
+                  <View style={styles.latestReadingInfo}>
+                    <Text style={styles.latestReadingTitle}>{config.title}</Text>
+                    <Text style={styles.latestReadingSubtitle}>Latest reading</Text>
+                  </View>
                 </View>
-                <View style={styles.latestReadingInfo}>
-                  <Text style={styles.latestReadingTitle}>{config.title}</Text>
-                  <Text style={styles.latestReadingSubtitle}>Latest reading</Text>
+                
+                <View style={styles.latestReadingValue}>
+                  <Text style={styles.latestValue}>
+                    {latest?.value || '--'}
+                  </Text>
+                  <Text style={styles.latestUnit}>
+                    {latest?.unit || config.unit}
+                  </Text>
                 </View>
+                
+                {latest && (
+                  <Text style={styles.latestDate}>
+                    {formatDate(latest.recorded_at)}
+                  </Text>
+                )}
               </View>
-              
-              <View style={styles.latestReadingValue}>
-                <Text style={styles.latestValue}>
-                  {latest?.value || '--'}
-                </Text>
-                <Text style={styles.latestUnit}>
-                  {latest?.unit || config.unit}
-                </Text>
-              </View>
-              
-              {latest && (
-                <Text style={styles.latestDate}>
-                  {formatDate(latest.recorded_at)}
-                </Text>
-              )}
-            </View>
-          );
-        })()}
+            );
+          })()}
+        </AnimatedView>
 
         {/* Recent Readings */}
-        <View style={styles.recentReadingsSection}>
-          <Text style={styles.sectionTitle}>Recent Readings</Text>
+        <AnimatedView type="slideUp" delay={500}>
+          <View style={styles.recentReadingsSection}>
+            <Text style={styles.sectionTitle}>Recent Readings</Text>
 
-          {(() => {
-            const recentReadings = getRecentReadings();
-            
-            if (recentReadings.length === 0) {
-              return (
-                <View style={styles.emptyReadings}>
-                  <Text style={styles.emptyReadingsText}>No readings yet</Text>
-                  <Text style={styles.emptyReadingsSubtext}>
-                    Add your first {METRIC_CONFIGS[selectedMetric].title.toLowerCase()} reading
-                  </Text>
-                </View>
-              );
-            }
-
-            return recentReadings.map((reading) => (
-              <View key={reading.id} style={styles.readingItem}>
-                <View style={styles.readingContent}>
-                  <Text style={styles.readingValue}>
-                    {reading.value} {reading.unit}
-                  </Text>
-                  <Text style={styles.readingDate}>
-                    {formatDate(reading.recorded_at)}
-                  </Text>
-                  {reading.notes && (
-                    <Text style={styles.readingNotes}>
-                      {reading.notes}
+            {(() => {
+              const recentReadings = getRecentReadings();
+              
+              if (recentReadings.length === 0) {
+                return (
+                  <View style={styles.emptyReadings}>
+                    <Text style={styles.emptyReadingsText}>No readings yet</Text>
+                    <Text style={styles.emptyReadingsSubtext}>
+                      Add your first {METRIC_CONFIGS[selectedMetric].title.toLowerCase()} reading
                     </Text>
-                  )}
-                </View>
-                <TouchableOpacity
-                  style={styles.deleteReadingButton}
-                  onPress={() => handleDeleteMetric(reading.id)}
-                >
-                  <Trash2 size={16} color="#EF4444" />
-                </TouchableOpacity>
-              </View>
-            ));
-          })()}
-        </View>
+                  </View>
+                );
+              }
+
+              return (
+                <StaggeredList staggerDelay={100} itemDelay={600}>
+                  {recentReadings.map((reading) => (
+                    <View key={reading.id} style={styles.readingItem}>
+                      <View style={styles.readingContent}>
+                        <Text style={styles.readingValue}>
+                          {reading.value} {reading.unit}
+                        </Text>
+                        <Text style={styles.readingDate}>
+                          {formatDate(reading.recorded_at)}
+                        </Text>
+                        {reading.notes && (
+                          <Text style={styles.readingNotes}>
+                            {reading.notes}
+                          </Text>
+                        )}
+                      </View>
+                      <AnimatedButton
+                        style={styles.deleteReadingButton}
+                        onPress={() => handleDeleteMetric(reading.id)}
+                        pressScale={0.9}
+                      >
+                        <Trash2 size={16} color="#EF4444" />
+                      </AnimatedButton>
+                    </View>
+                  ))}
+                </StaggeredList>
+              );
+            })()}
+          </View>
+        </AnimatedView>
       </Animated.ScrollView>
 
+      {/* Floating Action Button */}
+      <View style={styles.fabContainer}>
+        <FloatingActionButton
+          onPress={() => setShowAddModal(true)}
+          backgroundColor="#3B82F6"
+          shadowColor="#3B82F6"
+        >
+          <Plus size={24} color="#ffffff" />
+        </FloatingActionButton>
+      </View>
+
       {/* Add Readings Modal */}
-      <Modal
+      <AnimatedModal
         visible={showAddModal}
         animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setShowAddModal(false)}
+        onRequestClose={handleCloseAddModal}
       >
         <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setShowAddModal(false)}>
+            <AnimatedButton onPress={handleCloseAddModal}>
               <X size={24} color="#6B7280" />
-            </TouchableOpacity>
+            </AnimatedButton>
             <Text style={styles.modalTitle}>Add Health Readings</Text>
-            <TouchableOpacity
+            <AnimatedButton
               onPress={handleAddMetric}
               disabled={submitting}
               style={[styles.saveButton, submitting && styles.saveButtonDisabled]}
@@ -446,7 +475,7 @@ export default function HealthScreen() {
               ) : (
                 <Text style={styles.saveButtonText}>Save</Text>
               )}
-            </TouchableOpacity>
+            </AnimatedButton>
           </View>
 
           <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
@@ -527,7 +556,7 @@ export default function HealthScreen() {
             })}
           </ScrollView>
         </SafeAreaView>
-      </Modal>
+      </AnimatedModal>
 
       {/* Voice Entry Modal */}
       <VoiceEntryModal
@@ -768,6 +797,11 @@ const styles = StyleSheet.create({
   },
   deleteReadingButton: {
     padding: 16,
+  },
+  fabContainer: {
+    position: 'absolute',
+    bottom: 90,
+    right: 24,
   },
   modalContainer: {
     flex: 1,

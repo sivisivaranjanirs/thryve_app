@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
-  Modal,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { 
@@ -33,6 +32,9 @@ import { useReadingPermissions } from '@/hooks/useReadingPermissions';
 import { useUsers } from '@/hooks/useUsers';
 import { useHealthMetrics } from '@/hooks/useHealthMetrics';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { AnimatedView, StaggeredList } from '@/components/AnimatedView';
+import { AnimatedButton } from '@/components/AnimatedButton';
+import { AnimatedModal } from '@/components/AnimatedModal';
 import { UserProfile, HealthMetric, MetricType } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
@@ -251,7 +253,7 @@ export default function FriendsScreen() {
     return (
       <View style={styles.container}>
         <View style={styles.loadingContainer}>
-          <LoadingSpinner />
+          <LoadingSpinner type="pulse" />
         </View>
       </View>
     );
@@ -270,284 +272,304 @@ export default function FriendsScreen() {
         contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 20 }]}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.title}>Access Management</Text>
-            <Text style={styles.subtitle}>Request access to view others' health readings</Text>
+        <AnimatedView type="slideUp" delay={100}>
+          <View style={styles.header}>
+            <View>
+              <Text style={styles.title}>Access Management</Text>
+              <Text style={styles.subtitle}>Request access to view others' health readings</Text>
+            </View>
           </View>
-        </View>
+        </AnimatedView>
 
         {/* Request Button */}
-        <View style={styles.requestButtonContainer}>
-          <TouchableOpacity
-            style={styles.requestButton}
-            onPress={() => setShowInviteModal(true)}
-          >
-            <UserPlus size={20} color="#ffffff" />
-            <Text style={styles.requestButtonText}>Request</Text>
-          </TouchableOpacity>
-        </View>
+        <AnimatedView type="slideUp" delay={200}>
+          <View style={styles.requestButtonContainer}>
+            <AnimatedButton
+              style={styles.requestButton}
+              onPress={() => setShowInviteModal(true)}
+            >
+              <UserPlus size={20} color="#ffffff" />
+              <Text style={styles.requestButtonText}>Request</Text>
+            </AnimatedButton>
+          </View>
+        </AnimatedView>
 
         {/* I Can View Section */}
-        <View style={styles.section}>
-          <TouchableOpacity
-            style={styles.sectionHeader}
-            onPress={() => toggleSection('canView')}
-          >
-            <View style={styles.sectionHeaderLeft}>
-              <View style={[styles.sectionIcon, { backgroundColor: '#3B82F620' }]}>
-                <Eye size={20} color="#3B82F6" />
-              </View>
-              <View>
-                <Text style={styles.sectionTitle}>I Can View</Text>
-                <Text style={styles.sectionSubtitle}>
-                  Health data I have access to ({canViewData.length})
-                </Text>
-              </View>
-            </View>
-            {expandedSections.canView ? (
-              <ChevronUp size={20} color="#9CA3AF" />
-            ) : (
-              <ChevronDown size={20} color="#9CA3AF" />
-            )}
-          </TouchableOpacity>
-
-          {expandedSections.canView && (
-            <View style={styles.sectionContent}>
-              {canViewData.length === 0 ? (
-                <View style={styles.emptyState}>
-                  <Text style={styles.emptyStateText}>No access granted yet</Text>
-                  <Text style={styles.emptyStateSubtext}>
-                    Send requests to view others' health data
+        <AnimatedView type="slideUp" delay={300}>
+          <View style={styles.section}>
+            <AnimatedButton
+              style={styles.sectionHeader}
+              onPress={() => toggleSection('canView')}
+              pressScale={0.98}
+            >
+              <View style={styles.sectionHeaderLeft}>
+                <View style={[styles.sectionIcon, { backgroundColor: '#3B82F620' }]}>
+                  <Eye size={20} color="#3B82F6" />
+                </View>
+                <View>
+                  <Text style={styles.sectionTitle}>I Can View</Text>
+                  <Text style={styles.sectionSubtitle}>
+                    Health data I have access to ({canViewData.length})
                   </Text>
                 </View>
+              </View>
+              {expandedSections.canView ? (
+                <ChevronUp size={20} color="#9CA3AF" />
               ) : (
-                canViewData.map((item) => (
-                  <View key={item.id} style={styles.accessItem}>
-                    <View style={styles.accessItemLeft}>
-                      <View style={styles.userAvatar}>
-                        <Text style={styles.userInitial}>
-                          {item.full_name?.charAt(0)?.toUpperCase() || 'U'}
-                        </Text>
-                      </View>
-                      <View style={styles.userInfo}>
-                        <Text style={styles.userName}>{item.full_name || 'Unknown User'}</Text>
-                        <Text style={styles.userEmail}>{item.email}</Text>
-                        <Text style={styles.accessDate}>
-                          Access granted {formatDate(item.lastActivity)}
-                        </Text>
-                      </View>
-                    </View>
-                    <View style={styles.accessItemRight}>
-                      <TouchableOpacity
-                        style={styles.viewDataButton}
-                        onPress={() => handleViewFriendData(item)}
-                      >
-                        <FileText size={16} color="#3B82F6" />
-                      </TouchableOpacity>
-                      <View style={styles.statusBadge}>
-                        <Text style={styles.statusText}>Active</Text>
-                      </View>
-                    </View>
-                  </View>
-                ))
+                <ChevronDown size={20} color="#9CA3AF" />
               )}
-            </View>
-          )}
-        </View>
+            </AnimatedButton>
+
+            {expandedSections.canView && (
+              <View style={styles.sectionContent}>
+                {canViewData.length === 0 ? (
+                  <View style={styles.emptyState}>
+                    <Text style={styles.emptyStateText}>No access granted yet</Text>
+                    <Text style={styles.emptyStateSubtext}>
+                      Send requests to view others' health data
+                    </Text>
+                  </View>
+                ) : (
+                  <StaggeredList staggerDelay={100} itemDelay={400}>
+                    {canViewData.map((item) => (
+                      <View key={item.id} style={styles.accessItem}>
+                        <View style={styles.accessItemLeft}>
+                          <View style={styles.userAvatar}>
+                            <Text style={styles.userInitial}>
+                              {item.full_name?.charAt(0)?.toUpperCase() || 'U'}
+                            </Text>
+                          </View>
+                          <View style={styles.userInfo}>
+                            <Text style={styles.userName}>{item.full_name || 'Unknown User'}</Text>
+                            <Text style={styles.userEmail}>{item.email}</Text>
+                            <Text style={styles.accessDate}>
+                              Access granted {formatDate(item.lastActivity)}
+                            </Text>
+                          </View>
+                        </View>
+                        <View style={styles.accessItemRight}>
+                          <AnimatedButton
+                            style={styles.viewDataButton}
+                            onPress={() => handleViewFriendData(item)}
+                            pressScale={0.9}
+                          >
+                            <FileText size={16} color="#3B82F6" />
+                          </AnimatedButton>
+                          <View style={styles.statusBadge}>
+                            <Text style={styles.statusText}>Active</Text>
+                          </View>
+                        </View>
+                      </View>
+                    ))}
+                  </StaggeredList>
+                )}
+              </View>
+            )}
+          </View>
+        </AnimatedView>
 
         {/* Who Can View Mine Section */}
-        <View style={styles.section}>
-          <TouchableOpacity
-            style={styles.sectionHeader}
-            onPress={() => toggleSection('whoCanView')}
-          >
-            <View style={styles.sectionHeaderLeft}>
-              <View style={[styles.sectionIcon, { backgroundColor: '#10B98120' }]}>
-                <Shield size={20} color="#10B981" />
-              </View>
-              <View>
-                <Text style={styles.sectionTitle}>Who Can View Mine</Text>
-                <Text style={styles.sectionSubtitle}>
-                  People who can view my health data ({whoCanViewData.length})
-                </Text>
-              </View>
-            </View>
-            {expandedSections.whoCanView ? (
-              <ChevronUp size={20} color="#9CA3AF" />
-            ) : (
-              <ChevronDown size={20} color="#9CA3AF" />
-            )}
-          </TouchableOpacity>
-
-          {expandedSections.whoCanView && (
-            <View style={styles.sectionContent}>
-              {whoCanViewData.length === 0 ? (
-                <View style={styles.emptyState}>
-                  <Text style={styles.emptyStateText}>No viewers yet</Text>
-                  <Text style={styles.emptyStateSubtext}>
-                    Accept requests to share your health data
+        <AnimatedView type="slideUp" delay={400}>
+          <View style={styles.section}>
+            <AnimatedButton
+              style={styles.sectionHeader}
+              onPress={() => toggleSection('whoCanView')}
+              pressScale={0.98}
+            >
+              <View style={styles.sectionHeaderLeft}>
+                <View style={[styles.sectionIcon, { backgroundColor: '#10B98120' }]}>
+                  <Shield size={20} color="#10B981" />
+                </View>
+                <View>
+                  <Text style={styles.sectionTitle}>Who Can View Mine</Text>
+                  <Text style={styles.sectionSubtitle}>
+                    People who can view my health data ({whoCanViewData.length})
                   </Text>
                 </View>
+              </View>
+              {expandedSections.whoCanView ? (
+                <ChevronUp size={20} color="#9CA3AF" />
               ) : (
-                whoCanViewData.map((item) => (
-                  <View key={item.id} style={styles.accessItem}>
-                    <View style={styles.accessItemLeft}>
-                      <View style={styles.userAvatar}>
-                        <Text style={styles.userInitial}>
-                          {item.full_name?.charAt(0)?.toUpperCase() || 'U'}
-                        </Text>
-                      </View>
-                      <View style={styles.userInfo}>
-                        <Text style={styles.userName}>{item.full_name || 'Unknown User'}</Text>
-                        <Text style={styles.userEmail}>{item.email}</Text>
-                        <Text style={styles.accessDate}>
-                          Access granted {formatDate(item.lastActivity)}
-                        </Text>
-                      </View>
-                    </View>
-                    <View style={styles.accessItemRight}>
-                      <TouchableOpacity
-                        style={styles.toggleButton}
-                        onPress={() => handleToggleAccess(item.permissionId, item.status)}
-                      >
-                        {item.canView ? (
-                          <EyeOff size={16} color="#EF4444" />
-                        ) : (
-                          <Eye size={16} color="#10B981" />
-                        )}
-                      </TouchableOpacity>
-                      <View style={[
-                        styles.statusBadge,
-                        !item.canView && styles.statusBadgeInactive
-                      ]}>
-                        <Text style={[
-                          styles.statusText,
-                          !item.canView && styles.statusTextInactive
-                        ]}>
-                          {item.canView ? 'Active' : 'Blocked'}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                ))
+                <ChevronDown size={20} color="#9CA3AF" />
               )}
-            </View>
-          )}
-        </View>
+            </AnimatedButton>
+
+            {expandedSections.whoCanView && (
+              <View style={styles.sectionContent}>
+                {whoCanViewData.length === 0 ? (
+                  <View style={styles.emptyState}>
+                    <Text style={styles.emptyStateText}>No viewers yet</Text>
+                    <Text style={styles.emptyStateSubtext}>
+                      Accept requests to share your health data
+                    </Text>
+                  </View>
+                ) : (
+                  <StaggeredList staggerDelay={100} itemDelay={500}>
+                    {whoCanViewData.map((item) => (
+                      <View key={item.id} style={styles.accessItem}>
+                        <View style={styles.accessItemLeft}>
+                          <View style={styles.userAvatar}>
+                            <Text style={styles.userInitial}>
+                              {item.full_name?.charAt(0)?.toUpperCase() || 'U'}
+                            </Text>
+                          </View>
+                          <View style={styles.userInfo}>
+                            <Text style={styles.userName}>{item.full_name || 'Unknown User'}</Text>
+                            <Text style={styles.userEmail}>{item.email}</Text>
+                            <Text style={styles.accessDate}>
+                              Access granted {formatDate(item.lastActivity)}
+                            </Text>
+                          </View>
+                        </View>
+                        <View style={styles.accessItemRight}>
+                          <AnimatedButton
+                            style={styles.toggleButton}
+                            onPress={() => handleToggleAccess(item.permissionId, item.status)}
+                            pressScale={0.9}
+                          >
+                            {item.canView ? (
+                              <EyeOff size={16} color="#EF4444" />
+                            ) : (
+                              <Eye size={16} color="#10B981" />
+                            )}
+                          </AnimatedButton>
+                          <View style={[
+                            styles.statusBadge,
+                            !item.canView && styles.statusBadgeInactive
+                          ]}>
+                            <Text style={[
+                              styles.statusText,
+                              !item.canView && styles.statusTextInactive
+                            ]}>
+                              {item.canView ? 'Active' : 'Blocked'}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                    ))}
+                  </StaggeredList>
+                )}
+              </View>
+            )}
+          </View>
+        </AnimatedView>
 
         {/* Requests Section */}
-        <View style={styles.section}>
-          <TouchableOpacity
-            style={styles.sectionHeader}
-            onPress={() => toggleSection('requests')}
-          >
-            <View style={styles.sectionHeaderLeft}>
-              <View style={[styles.sectionIcon, { backgroundColor: '#F59E0B20' }]}>
-                <Mail size={20} color="#F59E0B" />
-              </View>
-              <View>
-                <Text style={styles.sectionTitle}>Requests</Text>
-                <Text style={styles.sectionSubtitle}>
-                  Pending access requests ({requestsData.received.length} received, {requestsData.sent.length} sent)
-                </Text>
-              </View>
-            </View>
-            {expandedSections.requests ? (
-              <ChevronUp size={20} color="#9CA3AF" />
-            ) : (
-              <ChevronDown size={20} color="#9CA3AF" />
-            )}
-          </TouchableOpacity>
-
-          {expandedSections.requests && (
-            <View style={styles.sectionContent}>
-              {requestsData.received.length === 0 && requestsData.sent.length === 0 ? (
-                <View style={styles.emptyState}>
-                  <Text style={styles.emptyStateText}>No pending requests</Text>
-                  <Text style={styles.emptyStateSubtext}>
-                    Send or receive requests to share health data
+        <AnimatedView type="slideUp" delay={500}>
+          <View style={styles.section}>
+            <AnimatedButton
+              style={styles.sectionHeader}
+              onPress={() => toggleSection('requests')}
+              pressScale={0.98}
+            >
+              <View style={styles.sectionHeaderLeft}>
+                <View style={[styles.sectionIcon, { backgroundColor: '#F59E0B20' }]}>
+                  <Mail size={20} color="#F59E0B" />
+                </View>
+                <View>
+                  <Text style={styles.sectionTitle}>Requests</Text>
+                  <Text style={styles.sectionSubtitle}>
+                    Pending access requests ({requestsData.received.length} received, {requestsData.sent.length} sent)
                   </Text>
                 </View>
+              </View>
+              {expandedSections.requests ? (
+                <ChevronUp size={20} color="#9CA3AF" />
               ) : (
-                <>
-                  {requestsData.received.map((item) => (
-                    <View key={item.requestId} style={styles.accessItem}>
-                      <View style={styles.accessItemLeft}>
-                        <View style={styles.userAvatar}>
-                          <Text style={styles.userInitial}>
-                            {item.full_name?.charAt(0)?.toUpperCase() || 'U'}
-                          </Text>
-                        </View>
-                        <View style={styles.userInfo}>
-                          <Text style={styles.userName}>{item.full_name || 'Unknown User'}</Text>
-                          <Text style={styles.userEmail}>{item.email}</Text>
-                          <Text style={styles.accessDate}>
-                            Requested {formatDate(item.lastActivity)}
-                          </Text>
-                        </View>
-                      </View>
-                      <View style={styles.requestActions}>
-                        <TouchableOpacity
-                          style={styles.acceptButton}
-                          onPress={() => handleAcceptRequest(item.requestId)}
-                        >
-                          <Check size={16} color="#ffffff" />
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={styles.declineButton}
-                          onPress={() => handleDeclineRequest(item.requestId)}
-                        >
-                          <X size={16} color="#ffffff" />
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  ))}
-                  
-                  {requestsData.sent.map((item) => (
-                    <View key={item.requestId} style={styles.accessItem}>
-                      <View style={styles.accessItemLeft}>
-                        <View style={styles.userAvatar}>
-                          <Text style={styles.userInitial}>
-                            {item.full_name?.charAt(0)?.toUpperCase() || 'U'}
-                          </Text>
-                        </View>
-                        <View style={styles.userInfo}>
-                          <Text style={styles.userName}>{item.full_name || 'Unknown User'}</Text>
-                          <Text style={styles.userEmail}>{item.email}</Text>
-                          <Text style={styles.accessDate}>
-                            Sent {formatDate(item.lastActivity)}
-                          </Text>
-                        </View>
-                      </View>
-                      <View style={styles.pendingBadge}>
-                        <Text style={styles.pendingText}>Pending</Text>
-                      </View>
-                    </View>
-                  ))}
-                </>
+                <ChevronDown size={20} color="#9CA3AF" />
               )}
-            </View>
-          )}
-        </View>
+            </AnimatedButton>
+
+            {expandedSections.requests && (
+              <View style={styles.sectionContent}>
+                {requestsData.received.length === 0 && requestsData.sent.length === 0 ? (
+                  <View style={styles.emptyState}>
+                    <Text style={styles.emptyStateText}>No pending requests</Text>
+                    <Text style={styles.emptyStateSubtext}>
+                      Send or receive requests to share health data
+                    </Text>
+                  </View>
+                ) : (
+                  <StaggeredList staggerDelay={100} itemDelay={600}>
+                    {requestsData.received.map((item) => (
+                      <View key={item.requestId} style={styles.accessItem}>
+                        <View style={styles.accessItemLeft}>
+                          <View style={styles.userAvatar}>
+                            <Text style={styles.userInitial}>
+                              {item.full_name?.charAt(0)?.toUpperCase() || 'U'}
+                            </Text>
+                          </View>
+                          <View style={styles.userInfo}>
+                            <Text style={styles.userName}>{item.full_name || 'Unknown User'}</Text>
+                            <Text style={styles.userEmail}>{item.email}</Text>
+                            <Text style={styles.accessDate}>
+                              Requested {formatDate(item.lastActivity)}
+                            </Text>
+                          </View>
+                        </View>
+                        <View style={styles.requestActions}>
+                          <AnimatedButton
+                            style={styles.acceptButton}
+                            onPress={() => handleAcceptRequest(item.requestId)}
+                            pressScale={0.9}
+                          >
+                            <Check size={16} color="#ffffff" />
+                          </AnimatedButton>
+                          <AnimatedButton
+                            style={styles.declineButton}
+                            onPress={() => handleDeclineRequest(item.requestId)}
+                            pressScale={0.9}
+                          >
+                            <X size={16} color="#ffffff" />
+                          </AnimatedButton>
+                        </View>
+                      </View>
+                    ))}
+                    
+                    {requestsData.sent.map((item) => (
+                      <View key={item.requestId} style={styles.accessItem}>
+                        <View style={styles.accessItemLeft}>
+                          <View style={styles.userAvatar}>
+                            <Text style={styles.userInitial}>
+                              {item.full_name?.charAt(0)?.toUpperCase() || 'U'}
+                            </Text>
+                          </View>
+                          <View style={styles.userInfo}>
+                            <Text style={styles.userName}>{item.full_name || 'Unknown User'}</Text>
+                            <Text style={styles.userEmail}>{item.email}</Text>
+                            <Text style={styles.accessDate}>
+                              Sent {formatDate(item.lastActivity)}
+                            </Text>
+                          </View>
+                        </View>
+                        <View style={styles.pendingBadge}>
+                          <Text style={styles.pendingText}>Pending</Text>
+                        </View>
+                      </View>
+                    ))}
+                  </StaggeredList>
+                )}
+              </View>
+            )}
+          </View>
+        </AnimatedView>
       </ScrollView>
 
       {/* Request Modal */}
-      <Modal
+      <AnimatedModal
         visible={showInviteModal}
         animationType="slide"
-        presentationStyle="pageSheet"
         onRequestClose={() => setShowInviteModal(false)}
       >
         <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setShowInviteModal(false)}>
+            <AnimatedButton onPress={() => setShowInviteModal(false)}>
               <Text style={styles.cancelButton}>Cancel</Text>
-            </TouchableOpacity>
+            </AnimatedButton>
             <Text style={styles.modalTitle}>Request Access</Text>
-            <TouchableOpacity onPress={handleSendInvite}>
+            <AnimatedButton onPress={handleSendInvite}>
               <Text style={styles.sendButton}>Send</Text>
-            </TouchableOpacity>
+            </AnimatedButton>
           </View>
 
           <View style={styles.modalContent}>
@@ -575,20 +597,19 @@ export default function FriendsScreen() {
             />
           </View>
         </SafeAreaView>
-      </Modal>
+      </AnimatedModal>
 
       {/* Friend Health Data Modal */}
-      <Modal
+      <AnimatedModal
         visible={!!selectedFriend}
         animationType="slide"
-        presentationStyle="pageSheet"
         onRequestClose={() => setSelectedFriend(null)}
       >
         <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setSelectedFriend(null)}>
+            <AnimatedButton onPress={() => setSelectedFriend(null)}>
               <Text style={styles.cancelButton}>Close</Text>
-            </TouchableOpacity>
+            </AnimatedButton>
             <Text style={styles.modalTitle}>
               {selectedFriend?.full_name}'s Health Data
             </Text>
@@ -598,7 +619,7 @@ export default function FriendsScreen() {
           <ScrollView style={styles.modalContent}>
             {loadingHealthData ? (
               <View style={styles.loadingContainer}>
-                <LoadingSpinner />
+                <LoadingSpinner type="pulse" />
               </View>
             ) : friendHealthData.length === 0 ? (
               <View style={styles.emptyState}>
@@ -606,35 +627,37 @@ export default function FriendsScreen() {
                 <Text style={styles.emptyStateText}>No health data available</Text>
               </View>
             ) : (
-              friendHealthData.map((data) => {
-                const IconComponent = HEALTH_ICONS[data.metric_type];
-                const color = HEALTH_COLORS[data.metric_type];
-                
-                return (
-                  <View key={data.id} style={styles.healthDataCard}>
-                    <View style={styles.healthDataHeader}>
-                      <View style={[styles.healthDataIcon, { backgroundColor: `${color}20` }]}>
-                        <IconComponent size={20} color={color} />
+              <StaggeredList staggerDelay={100} itemDelay={0}>
+                {friendHealthData.map((data) => {
+                  const IconComponent = HEALTH_ICONS[data.metric_type];
+                  const color = HEALTH_COLORS[data.metric_type];
+                  
+                  return (
+                    <View key={data.id} style={styles.healthDataCard}>
+                      <View style={styles.healthDataHeader}>
+                        <View style={[styles.healthDataIcon, { backgroundColor: `${color}20` }]}>
+                          <IconComponent size={20} color={color} />
+                        </View>
+                        <View style={styles.healthDataInfo}>
+                          <Text style={styles.healthDataType}>
+                            {data.metric_type.replace('_', ' ').toUpperCase()}
+                          </Text>
+                          <Text style={styles.healthDataDate}>
+                            {formatDate(data.recorded_at)}
+                          </Text>
+                        </View>
                       </View>
-                      <View style={styles.healthDataInfo}>
-                        <Text style={styles.healthDataType}>
-                          {data.metric_type.replace('_', ' ').toUpperCase()}
-                        </Text>
-                        <Text style={styles.healthDataDate}>
-                          {formatDate(data.recorded_at)}
-                        </Text>
-                      </View>
+                      <Text style={styles.healthDataValue}>
+                        {data.value} <Text style={styles.healthDataUnit}>{data.unit}</Text>
+                      </Text>
                     </View>
-                    <Text style={styles.healthDataValue}>
-                      {data.value} <Text style={styles.healthDataUnit}>{data.unit}</Text>
-                    </Text>
-                  </View>
-                );
-              })
+                  );
+                })}
+              </StaggeredList>
             )}
           </ScrollView>
         </SafeAreaView>
-      </Modal>
+      </AnimatedModal>
     </View>
   );
 }
@@ -654,8 +677,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 16,
     backgroundColor: '#ffffff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderRadius: 16,
+    marginHorizontal: 24,
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
   title: {
     fontSize: 24,
@@ -679,6 +708,11 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     paddingVertical: 20,
     gap: 10,
+    shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 4,
   },
   requestButtonText: {
     color: '#ffffff',
@@ -701,6 +735,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.04,
     shadowRadius: 8,
     elevation: 1,
+    overflow: 'hidden',
   },
   sectionHeader: {
     flexDirection: 'row',
