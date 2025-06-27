@@ -32,7 +32,7 @@ export function AppHeader({
     const opacity = interpolate(
       scrollY.value,
       [0, 50, 100],
-      [0.95, 0.98, 1],
+      [1, 1, 1],
       Extrapolate.CLAMP
     );
 
@@ -86,12 +86,12 @@ const styles = StyleSheet.create({
     zIndex: 1000,
   },
   safeArea: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    backgroundColor: '#ffffff',
   },
   container: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    backgroundColor: '#ffffff',
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(229, 231, 235, 0.8)',
+    borderBottomColor: '#E5E7EB',
   },
   content: {
     flexDirection: 'row',

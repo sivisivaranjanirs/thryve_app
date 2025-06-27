@@ -9,7 +9,7 @@ import {
   Alert,
   Modal,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { 
   Plus, 
   Heart, 
@@ -79,6 +79,7 @@ export default function HealthScreen() {
   const { metrics, loading, addMetric, deleteMetric, getMetricsByType, getLatestMetric } = useHealthMetrics();
   const { getPremiumFeatures } = useSubscription();
   const premiumFeatures = getPremiumFeatures();
+  const insets = useSafeAreaInsets();
   
   const scrollY = useSharedValue(0);
 
@@ -275,7 +276,7 @@ export default function HealthScreen() {
       
       <Animated.ScrollView 
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 74 }]}
         onScroll={scrollHandler}
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}

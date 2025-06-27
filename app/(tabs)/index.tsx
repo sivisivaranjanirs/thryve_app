@@ -8,7 +8,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { 
   MessageSquare, 
   Activity, 
@@ -33,6 +33,7 @@ export default function DashboardScreen() {
   const { user, profile } = useAuth();
   const { metrics, loading, fetchMetrics, getLatestMetric, getMetricStats } = useHealthMetrics();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const scrollY = useSharedValue(0);
 
   const scrollHandler = useAnimatedScrollHandler({
@@ -106,7 +107,7 @@ export default function DashboardScreen() {
       
       <Animated.ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 74 }]}
         onScroll={scrollHandler}
         scrollEventThrottle={16}
         refreshControl={

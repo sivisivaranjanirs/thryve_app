@@ -9,7 +9,7 @@ import {
   Alert,
   Modal,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { 
   Users, 
   UserPlus, 
@@ -55,6 +55,7 @@ const HEALTH_COLORS = {
 
 export default function FriendsScreen() {
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
   const { 
     permissions, 
     requests, 
@@ -248,11 +249,12 @@ export default function FriendsScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
+        <AppHeader />
         <View style={styles.loadingContainer}>
           <LoadingSpinner />
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -263,25 +265,31 @@ export default function FriendsScreen() {
   return (
     <View style={styles.container}>
       <AppHeader />
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.title}>Access Management</Text>
-          <Text style={styles.subtitle}>Request access to view others' health readings</Text>
+
+
+      <ScrollView 
+        style={styles.content} 
+        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 74 }]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.title}>Access Management</Text>
+            <Text style={styles.subtitle}>Request access to view others' health readings</Text>
+          </View>
         </View>
-      </View>
 
-      {/* Request Button */}
-      <View style={styles.requestButtonContainer}>
-        <TouchableOpacity
-          style={styles.requestButton}
-          onPress={() => setShowInviteModal(true)}
-        >
-          <UserPlus size={20} color="#ffffff" />
-          <Text style={styles.requestButtonText}>Request</Text>
-        </TouchableOpacity>
-      </View>
+        {/* Request Button */}
+        <View style={styles.requestButtonContainer}>
+          <TouchableOpacity
+            style={styles.requestButton}
+            onPress={() => setShowInviteModal(true)}
+          >
+            <UserPlus size={20} color="#ffffff" />
+            <Text style={styles.requestButtonText}>Request</Text>
+          </TouchableOpacity>
+        </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* I Can View Section */}
         <View style={styles.section}>
           <TouchableOpacity
