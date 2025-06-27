@@ -30,6 +30,14 @@ export function useVoiceChat(options: VoiceChatOptions = {}) {
     setError(null);
   }, []);
 
+  const resetStates = useCallback(() => {
+    setIsRecording(false);
+    setIsPlaying(false);
+    setIsProcessing(false);
+    setRecordingProgress(0);
+    setError(null);
+  }, []);
+
   const speakText = useCallback(async (text: string): Promise<void> => {
     try {
       return Sentry.startSpan(
@@ -41,20 +49,20 @@ export function useVoiceChat(options: VoiceChatOptions = {}) {
           span.setAttribute("text_length", text.length);
           span.setAttribute("voice_id", voiceId);
           
-      setIsProcessing(true);
-      setError(null);
+          setIsProcessing(true);
+          setError(null);
 
-      setIsPlaying(true);
-      await elevenLabs.textToSpeech(text, {
-        voice_id: voiceId,
-        voice_settings: {
-          stability: 0.5,
-          similarity_boost: 0.5,
-          style: 0.0,
-          use_speaker_boost: true,
-        },
-      });
-      setIsPlaying(false);
+          setIsPlaying(true);
+          await elevenLabs.textToSpeech(text, {
+            voice_id: voiceId,
+            voice_settings: {
+              stability: 0.5,
+              similarity_boost: 0.5,
+              style: 0.0,
+              use_speaker_boost: true,
+            },
+          });
+          setIsPlaying(false);
         }
       );
     } catch (err) {
@@ -67,9 +75,12 @@ export function useVoiceChat(options: VoiceChatOptions = {}) {
     } finally {
       setIsProcessing(false);
     }
-  }, [voiceId, autoPlay]);
+  }, [voiceId]);
 
   const startRecording = useCallback(async (): Promise<TranscriptionResult> => {
+    // Reset all states at the beginning
+    resetStates();
+    
     try {
       return Sentry.startSpan(
         {
@@ -81,49 +92,56 @@ export function useVoiceChat(options: VoiceChatOptions = {}) {
           span.setAttribute("language", language);
           
           logger.info('Starting voice recording', { duration: recordingDuration, language });
-      setIsRecording(true);
-      setRecordingProgress(recordingDuration);
-      setError(null);
-      setIsProcessing(false);
+          
+          setIsRecording(true);
+          setRecordingProgress(recordingDuration);
+          setError(null);
 
-      // Start progress countdown
-      const progressInterval = setInterval(() => {
-        setRecordingProgress(prev => {
-          const newProgress = prev - 100;
-          if (newProgress <= 0) {
+          // Start progress countdown
+          const progressInterval = setInterval(() => {
+            setRecordingProgress(prev => {
+              const newProgress = prev - 100;
+              if (newProgress <= 0) {
+                clearInterval(progressInterval);
+                return 0;
+              }
+              return newProgress;
+            });
+          }, 100);
+
+          try {
+            const transcription = await elevenLabs.speechToText({
+              language,
+              recordingDuration,
+              timestamp_granularities: ['segment'],
+              response_format: 'json',
+            });
+
+            // Clear progress interval
             clearInterval(progressInterval);
-            return 0;
+
+            logger.info('Voice recording transcription received', { 
+              textLength: transcription.text?.length || 0,
+              hasText: !!transcription.text?.trim()
+            });
+            
+            // Validate transcription result
+            if (!transcription || typeof transcription.text !== 'string') {
+              throw new Error('Invalid transcription result received');
+            }
+            
+            if (!transcription.text.trim()) {
+              throw new Error('No speech detected. Please speak clearly and try again.');
+            }
+            
+            span.setAttribute("transcription_length", transcription.text.length);
+            span.setAttribute("success", true);
+            
+            return transcription;
+          } catch (transcriptionError) {
+            clearInterval(progressInterval);
+            throw transcriptionError;
           }
-          return newProgress;
-        });
-      }, 100);
-
-      const transcription = await elevenLabs.speechToText({
-        language,
-        recordingDuration,
-        timestamp_granularities: ['segment'],
-        response_format: 'json',
-      });
-
-          logger.info('Voice recording transcription received', { 
-            textLength: transcription.text?.length || 0,
-            hasText: !!transcription.text?.trim()
-          });
-      
-      // Clear progress interval
-      clearInterval(progressInterval);
-      
-      // Validate transcription result
-      if (!transcription || typeof transcription.text !== 'string') {
-        throw new Error('Invalid transcription result received');
-      }
-      
-      if (!transcription.text.trim()) {
-        throw new Error('No speech detected. Please speak clearly and try again.');
-      }
-      
-          span.setAttribute("transcription_length", transcription.text.length);
-      return transcription;
         }
       );
     } catch (err) {
@@ -138,11 +156,12 @@ export function useVoiceChat(options: VoiceChatOptions = {}) {
       setError(errorMessage);
       throw err;
     } finally {
+      // Always reset states when recording is complete
       setIsRecording(false);
       setRecordingProgress(0);
       setIsProcessing(false);
     }
-  }, [recordingDuration, language]);
+  }, [recordingDuration, language, resetStates]);
 
   const transcribeAudio = useCallback(async (audioFile: File): Promise<TranscriptionResult> => {
     try {
@@ -155,16 +174,16 @@ export function useVoiceChat(options: VoiceChatOptions = {}) {
           span.setAttribute("file_size", audioFile.size);
           span.setAttribute("file_type", audioFile.type);
           
-      setIsProcessing(true);
-      setError(null);
+          setIsProcessing(true);
+          setError(null);
 
-      const transcription = await elevenLabs.speechToTextFromFile(audioFile, {
-        language,
-        timestamp_granularities: ['segment'],
-        response_format: 'json',
-      });
+          const transcription = await elevenLabs.speechToTextFromFile(audioFile, {
+            language,
+            timestamp_granularities: ['segment'],
+            response_format: 'json',
+          });
 
-      return transcription;
+          return transcription;
         }
       );
     } catch (err) {
@@ -184,6 +203,11 @@ export function useVoiceChat(options: VoiceChatOptions = {}) {
     logger.debug('Voice playback stopped');
   }, []);
 
+  const stopRecording = useCallback(() => {
+    logger.debug('Manually stopping recording');
+    resetStates();
+  }, [resetStates]);
+
   return {
     // State
     isRecording,
@@ -197,7 +221,9 @@ export function useVoiceChat(options: VoiceChatOptions = {}) {
     startRecording,
     transcribeAudio,
     stopPlaying,
+    stopRecording,
     clearError,
+    resetStates,
     
     // Computed
     isActive: isRecording || isPlaying || isProcessing,

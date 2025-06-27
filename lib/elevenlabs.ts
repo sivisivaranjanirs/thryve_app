@@ -70,9 +70,11 @@ class ElevenLabsService {
       recognition.onstart = () => {
         logger.debug('Fallback speech recognition started');
         // Set timeout for recording duration
-        timeoutId = setTimeout(() => {
+        if (options.recordingDuration) {
+          timeoutId = setTimeout(() => {
           recognition.stop();
-        }, options.recordingDuration || 5000);
+          }, options.recordingDuration);
+        }
       };
 
       recognition.onresult = (event) => {
@@ -91,7 +93,7 @@ class ElevenLabsService {
       };
 
       recognition.onerror = (event) => {
-        clearTimeout(timeoutId);
+        if (timeoutId) clearTimeout(timeoutId);
         logger.error('Fallback speech recognition error', { error: event.error });
         
         let errorMessage = 'Speech recognition failed. Please try again.';
@@ -114,14 +116,14 @@ class ElevenLabsService {
       };
 
       recognition.onend = () => {
-        clearTimeout(timeoutId);
+        if (timeoutId) clearTimeout(timeoutId);
         logger.debug('Fallback speech recognition ended');
       };
 
       try {
         recognition.start();
       } catch (error) {
-        clearTimeout(timeoutId);
+        if (timeoutId) clearTimeout(timeoutId);
         reject(new Error('Failed to start speech recognition. Please try again.'));
       }
     });
@@ -237,9 +239,6 @@ class ElevenLabsService {
             // Try ElevenLabs via Edge Functions
             const audioData = await this.recordAudio(
               options.recordingDuration || 5000,
-              (timeRemaining) => {
-                logger.debug(logger.fmt`Recording... ${Math.ceil(timeRemaining / 1000)}s remaining`);
-              }
             );
             
             if (!audioData || audioData.byteLength === 0) {
@@ -268,8 +267,9 @@ class ElevenLabsService {
             });
 
             if (!response.ok) {
+              const errorText = await response.text().catch(() => 'Unknown error');
               logger.error('STT API request failed', { status: response.status });
-              throw new Error('ElevenLabs STT service unavailable');
+              throw new Error(`ElevenLabs STT service unavailable: ${response.status}`);
             }
 
             const result = await response.json();
@@ -387,7 +387,6 @@ class ElevenLabsService {
    */
   async recordAudio(
     durationMs: number = 5000,
-    onProgress?: (timeRemaining: number) => void
   ): Promise<ArrayBuffer> {
     return Sentry.startSpan(
       {
@@ -475,24 +474,14 @@ class ElevenLabsService {
           stream.getTracks().forEach(track => track.stop());
           if (progressInterval) clearInterval(progressInterval);
           if (recordingTimeout) clearTimeout(recordingTimeout);
+          
+          logger.error('MediaRecorder error', { error });
+          Sentry.captureException(error);
           reject(error);
         };
 
           logger.debug('Starting MediaRecorder');
         mediaRecorder.start();
-        
-        // Progress tracking
-        if (onProgress) {
-          progressInterval = setInterval(() => {
-            const elapsed = Date.now() - startTime;
-            const remaining = Math.max(0, durationMs - elapsed);
-            onProgress(remaining);
-            
-            if (remaining <= 0) {
-              clearInterval(progressInterval);
-            }
-          }, 100);
-        }
         
         // Stop recording after specified duration
         recordingTimeout = setTimeout(() => {
