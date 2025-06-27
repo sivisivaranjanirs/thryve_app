@@ -31,6 +31,7 @@ export function useVoiceChat(options: VoiceChatOptions = {}) {
   }, []);
 
   const resetStates = useCallback(() => {
+    logger.debug('Resetting voice chat states');
     setIsRecording(false);
     setIsPlaying(false);
     setIsProcessing(false);
@@ -78,8 +79,7 @@ export function useVoiceChat(options: VoiceChatOptions = {}) {
   }, [voiceId]);
 
   const startRecording = useCallback(async (): Promise<TranscriptionResult> => {
-    // Reset all states at the beginning
-    resetStates();
+    let progressInterval: NodeJS.Timeout | null = null;
     
     try {
       return Sentry.startSpan(
@@ -93,16 +93,21 @@ export function useVoiceChat(options: VoiceChatOptions = {}) {
           
           logger.info('Starting voice recording', { duration: recordingDuration, language });
           
+          // Set initial states
           setIsRecording(true);
+          setIsProcessing(false);
           setRecordingProgress(recordingDuration);
           setError(null);
 
           // Start progress countdown
-          const progressInterval = setInterval(() => {
+          progressInterval = setInterval(() => {
             setRecordingProgress(prev => {
               const newProgress = prev - 100;
               if (newProgress <= 0) {
-                clearInterval(progressInterval);
+                if (progressInterval) {
+                  clearInterval(progressInterval);
+                  progressInterval = null;
+                }
                 return 0;
               }
               return newProgress;
@@ -110,15 +115,13 @@ export function useVoiceChat(options: VoiceChatOptions = {}) {
           }, 100);
 
           try {
+            logger.debug('Calling elevenLabs.speechToText');
             const transcription = await elevenLabs.speechToText({
               language,
               recordingDuration,
               timestamp_granularities: ['segment'],
               response_format: 'json',
             });
-
-            // Clear progress interval
-            clearInterval(progressInterval);
 
             logger.info('Voice recording transcription received', { 
               textLength: transcription.text?.length || 0,
@@ -139,7 +142,7 @@ export function useVoiceChat(options: VoiceChatOptions = {}) {
             
             return transcription;
           } catch (transcriptionError) {
-            clearInterval(progressInterval);
+            logger.error('Transcription error', { error: transcriptionError instanceof Error ? transcriptionError.message : 'Unknown error' });
             throw transcriptionError;
           }
         }
@@ -156,12 +159,17 @@ export function useVoiceChat(options: VoiceChatOptions = {}) {
       setError(errorMessage);
       throw err;
     } finally {
-      // Always reset states when recording is complete
+      // Always clean up states and intervals
+      if (progressInterval) {
+        clearInterval(progressInterval);
+      }
+      
+      logger.debug('Voice recording cleanup - resetting states');
       setIsRecording(false);
       setRecordingProgress(0);
       setIsProcessing(false);
     }
-  }, [recordingDuration, language, resetStates]);
+  }, [recordingDuration, language]);
 
   const transcribeAudio = useCallback(async (audioFile: File): Promise<TranscriptionResult> => {
     try {

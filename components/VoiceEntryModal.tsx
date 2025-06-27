@@ -23,8 +23,10 @@ interface VoiceEntryModalProps {
 export function VoiceEntryModal({ visible, onClose, onVoiceDataParsed }: VoiceEntryModalProps) {
   const { getPremiumFeatures } = useSubscription();
   const premiumFeatures = getPremiumFeatures();
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordingStatus, setRecordingStatus] = useState<'idle' | 'recording' | 'processing' | 'complete'>('idle');
+  
+  // Simplified state management - only track what we need
+  const [recordingState, setRecordingState] = useState<'idle' | 'recording' | 'processing' | 'complete' | 'error'>('idle');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   
   const {
     startRecording,
@@ -41,32 +43,44 @@ export function VoiceEntryModal({ visible, onClose, onVoiceDataParsed }: VoiceEn
 
   const scaleAnim = new Animated.Value(1);
 
-  // Reset states when modal opens/closes
+  // Reset everything when modal opens/closes
   useEffect(() => {
     if (visible) {
-      setRecordingStatus('idle');
-      setIsRecording(false);
+      logger.debug('Voice modal opened - resetting states');
+      setRecordingState('idle');
+      setErrorMessage(null);
       clearError();
-    } else {
       resetStates();
-      setRecordingStatus('idle');
-      setIsRecording(false);
+    } else {
+      logger.debug('Voice modal closed - cleaning up');
+      setRecordingState('idle');
+      setErrorMessage(null);
+      resetStates();
     }
   }, [visible, clearError, resetStates]);
 
-  // Sync with voice hook states
+  // Sync with voice hook states but don't conflict
   useEffect(() => {
-    if (voiceIsRecording) {
-      setRecordingStatus('recording');
-      setIsRecording(true);
-    } else if (voiceIsProcessing) {
-      setRecordingStatus('processing');
-      setIsRecording(false);
-    } else {
-      setRecordingStatus('idle');
-      setIsRecording(false);
+    if (voiceIsRecording && recordingState !== 'recording') {
+      logger.debug('Voice hook started recording');
+      setRecordingState('recording');
+    } else if (voiceIsProcessing && recordingState !== 'processing') {
+      logger.debug('Voice hook started processing');
+      setRecordingState('processing');
+    } else if (!voiceIsRecording && !voiceIsProcessing && recordingState !== 'idle' && recordingState !== 'complete') {
+      logger.debug('Voice hook finished - returning to idle');
+      setRecordingState('idle');
     }
-  }, [voiceIsRecording, voiceIsProcessing]);
+  }, [voiceIsRecording, voiceIsProcessing, recordingState]);
+
+  // Handle voice errors
+  useEffect(() => {
+    if (voiceError) {
+      logger.error('Voice error detected', { error: voiceError });
+      setRecordingState('error');
+      setErrorMessage(voiceError);
+    }
+  }, [voiceError]);
 
   const parseVoiceTranscriptForMetrics = (transcript: string): Record<string, string> => {
     const text = transcript.toLowerCase();
@@ -175,6 +189,9 @@ export function VoiceEntryModal({ visible, onClose, onVoiceDataParsed }: VoiceEn
         name: "Voice Health Entry Process",
       },
       async (span) => {
+        logger.info('Voice mic button pressed', { currentState: recordingState });
+
+        // Check premium access
         if (!premiumFeatures.voiceEntryForHealthMetrics) {
           span.setAttribute("premium_required", true);
           logger.warn('Voice entry attempted without premium subscription');
@@ -182,22 +199,19 @@ export function VoiceEntryModal({ visible, onClose, onVoiceDataParsed }: VoiceEn
           return;
         }
 
-        // If already recording, don't start another recording
-        if (isRecording || voiceIsRecording || recordingStatus !== 'idle') {
-          logger.debug('Recording already in progress or processing', { 
-            isRecording, 
-            voiceIsRecording, 
-            recordingStatus 
-          });
+        // Prevent multiple recordings
+        if (recordingState !== 'idle' && recordingState !== 'error') {
+          logger.debug('Recording already in progress, ignoring button press', { currentState: recordingState });
           return;
         }
 
-        // Clear any previous errors
+        // Clear any previous errors and reset states
+        setErrorMessage(null);
         clearError();
+        resetStates();
         
-        // Start recording
-        setRecordingStatus('recording');
-        setIsRecording(true);
+        // Start recording process
+        setRecordingState('recording');
         
         // Animate mic button
         Animated.sequence([
@@ -215,13 +229,18 @@ export function VoiceEntryModal({ visible, onClose, onVoiceDataParsed }: VoiceEn
 
         try {
           logger.info('Starting voice health entry recording');
+          
           const transcription = await startRecording();
           
           span.setAttribute("transcription_received", !!transcription.text);
           span.setAttribute("transcription_length", transcription.text?.length || 0);
           
           if (transcription.text && transcription.text.trim()) {
-            setRecordingStatus('processing');
+            logger.info('Transcription received, processing metrics', { 
+              transcript: transcription.text.substring(0, 100) 
+            });
+            
+            setRecordingState('processing');
             
             const parsedMetrics = parseVoiceTranscriptForMetrics(transcription.text);
             
@@ -234,51 +253,69 @@ export function VoiceEntryModal({ visible, onClose, onVoiceDataParsed }: VoiceEn
                 metrics: Object.keys(parsedMetrics)
               });
               
-              setRecordingStatus('complete');
+              setRecordingState('complete');
               
-              // Close this modal and pass data to parent
-              onClose();
-              // Add a small delay to ensure modal closes before opening the next one
+              // Small delay to show success state
               setTimeout(() => {
-                onVoiceDataParsed(parsedMetrics);
-              }, 100);
+                onClose();
+                // Pass data to parent after modal closes
+                setTimeout(() => {
+                  onVoiceDataParsed(parsedMetrics);
+                }, 100);
+              }, 1000);
             } else {
               logger.warn('No health metrics detected in voice input', { 
                 transcript: transcription.text.substring(0, 100)
               });
               
-              setRecordingStatus('idle');
+              setRecordingState('error');
+              setErrorMessage(`I heard: "${transcription.text}"\n\nBut I couldn't detect any health metrics. Please try again with phrases like "My blood pressure is 120 over 80" or "Heart rate 72 beats per minute".`);
               
-              // Show user feedback that no metrics were detected
-              alert(`I heard: "${transcription.text}"\n\nBut I couldn't detect any health metrics. Please try again and speak clearly about your health readings like:\n• "My blood pressure is 120 over 80"\n• "Heart rate 72 beats per minute"\n• "I weigh 150 pounds"`);
+              // Auto-reset to idle after showing error
+              setTimeout(() => {
+                setRecordingState('idle');
+                setErrorMessage(null);
+              }, 5000);
             }
           } else {
             logger.warn('No transcription text received from voice input');
-            setRecordingStatus('idle');
-            alert('No speech detected. Please speak clearly and try again.');
+            setRecordingState('error');
+            setErrorMessage('No speech detected. Please speak clearly and try again.');
+            
+            // Auto-reset to idle after showing error
+            setTimeout(() => {
+              setRecordingState('idle');
+              setErrorMessage(null);
+            }, 3000);
           }
         } catch (error) {
           logger.error('Voice health entry error', { error: error instanceof Error ? error.message : 'Unknown error' });
           Sentry.captureException(error);
           
-          setRecordingStatus('idle');
+          setRecordingState('error');
+          const errorMsg = error instanceof Error ? error.message : 'Voice recording failed. Please try again.';
+          setErrorMessage(errorMsg);
           
-          // Show user-friendly error message
-          const errorMessage = error instanceof Error ? error.message : 'Voice recording failed. Please try again.';
-          alert(errorMessage);
+          // Auto-reset to idle after showing error
+          setTimeout(() => {
+            setRecordingState('idle');
+            setErrorMessage(null);
+          }, 5000);
         }
       }
     );
   };
 
   const getButtonText = () => {
-    switch (recordingStatus) {
+    switch (recordingState) {
       case 'recording':
-        return 'Recording...';
+        return 'Recording... Speak now';
       case 'processing':
-        return 'Processing...';
+        return 'Processing your speech...';
       case 'complete':
-        return 'Complete!';
+        return 'Success! Opening form...';
+      case 'error':
+        return 'Error - Tap to try again';
       default:
         return premiumFeatures.voiceEntryForHealthMetrics 
           ? 'Tap to start recording'
@@ -287,22 +324,29 @@ export function VoiceEntryModal({ visible, onClose, onVoiceDataParsed }: VoiceEn
   };
 
   const getButtonColor = () => {
-    switch (recordingStatus) {
+    switch (recordingState) {
       case 'recording':
-        return '#EF4444';
+        return '#EF4444'; // Red while recording
       case 'processing':
-        return '#F59E0B';
+        return '#F59E0B'; // Orange while processing
       case 'complete':
-        return '#10B981';
+        return '#10B981'; // Green when complete
+      case 'error':
+        return '#EF4444'; // Red for error (but clickable)
       default:
         return premiumFeatures.voiceEntryForHealthMetrics ? '#10B981' : '#9CA3AF';
     }
   };
 
   const isButtonDisabled = () => {
+    // Only disable for non-premium users or during processing/complete states
     return !premiumFeatures.voiceEntryForHealthMetrics || 
-           recordingStatus === 'recording' || 
-           recordingStatus === 'processing';
+           recordingState === 'processing' || 
+           recordingState === 'complete';
+  };
+
+  const getCurrentError = () => {
+    return errorMessage || voiceError;
   };
 
   return (
@@ -326,7 +370,7 @@ export function VoiceEntryModal({ visible, onClose, onVoiceDataParsed }: VoiceEn
               onPress={handleMicPress}
               disabled={isButtonDisabled()}
             >
-              {recordingStatus === 'recording' ? (
+              {recordingState === 'recording' ? (
                 <MicOff size={32} color="#ffffff" />
               ) : (
                 <Mic size={32} color="#ffffff" />
@@ -355,9 +399,9 @@ export function VoiceEntryModal({ visible, onClose, onVoiceDataParsed }: VoiceEn
             </View>
           )}
 
-          {voiceError && (
+          {getCurrentError() && (
             <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>{voiceError}</Text>
+              <Text style={styles.errorText}>{getCurrentError()}</Text>
             </View>
           )}
 
@@ -451,6 +495,7 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 12,
     marginBottom: 24,
+    maxWidth: '100%',
   },
   errorText: {
     fontSize: 14,
