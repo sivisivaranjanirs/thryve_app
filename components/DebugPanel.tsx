@@ -8,7 +8,7 @@ import {
   Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Bug, X, CheckCircle, XCircle, AlertCircle } from 'lucide-react-native';
+import { Bug, X, CircleCheck as CheckCircle, Circle as XCircle, CircleAlert as AlertCircle } from 'lucide-react-native';
 import { SupabaseDebugger } from '@/lib/debug';
 import * as Sentry from '@sentry/react';
 
