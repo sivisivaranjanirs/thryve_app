@@ -48,12 +48,7 @@ serve(async (req) => {
         )
       }
 
-      console.log('Processing FormData audio file:', audioFile.name, audioFile.size, audioFile.type);
-            status: 400, 
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-          }
-        )
-      }
+      console.log('Processing FormData audio file:', audioFile.name, audioFile.size, audioFile.type)
 
       audioData = await audioFile.arrayBuffer()
       if (modelParam) model_id = modelParam
@@ -75,7 +70,7 @@ serve(async (req) => {
         )
       }
 
-      console.log('Processing JSON audio data, length:', audio.length);
+      console.log('Processing JSON audio data, length:', audio.length)
       
       // Decode base64 audio
       try {
@@ -86,7 +81,7 @@ serve(async (req) => {
           uint8Array[i] = binaryString.charCodeAt(i)
         }
       } catch (error) {
-        console.error('Base64 decode error:', error);
+        console.error('Base64 decode error:', error)
         
         return new Response(
           JSON.stringify({ error: 'Invalid base64 audio data' }),
@@ -105,7 +100,7 @@ serve(async (req) => {
 
     const ELEVENLABS_API_KEY = Deno.env.get('ELEVENLABS_API_KEY')
     if (!ELEVENLABS_API_KEY) {
-      console.error('ElevenLabs API key not found in environment');
+      console.error('ElevenLabs API key not found in environment')
       
       return new Response(
         JSON.stringify({ error: 'ElevenLabs API key not configured' }),
@@ -117,7 +112,7 @@ serve(async (req) => {
     }
 
     // Prepare FormData for ElevenLabs Scribe API
-    console.log('Preparing FormData for ElevenLabs API');
+    console.log('Preparing FormData for ElevenLabs API')
     
     const formData = new FormData()
     const audioBlob = new Blob([audioData], { type: 'audio/webm' })
@@ -132,7 +127,7 @@ serve(async (req) => {
     formData.append('response_format', response_format)
 
     // Call ElevenLabs Scribe_v1 STT API
-    console.log('Calling ElevenLabs STT API with model:', model_id, 'language:', language);
+    console.log('Calling ElevenLabs STT API with model:', model_id, 'language:', language)
     
     const response = await fetch('https://api.elevenlabs.io/v1/speech-to-text', {
       method: 'POST',
@@ -144,7 +139,7 @@ serve(async (req) => {
 
     if (!response.ok) {
       const errorText = await response.text()
-      console.error('ElevenLabs STT API error:', response.status, response.statusText, errorText);
+      console.error('ElevenLabs STT API error:', response.status, response.statusText, errorText)
       console.error('ElevenLabs STT API error:', errorText)
       return new Response(
         JSON.stringify({ error: 'Failed to transcribe speech' }),
@@ -157,7 +152,7 @@ serve(async (req) => {
 
     const transcriptionResult = await response.json()
     
-    console.log('ElevenLabs STT result:', transcriptionResult);
+    console.log('ElevenLabs STT result:', transcriptionResult)
     
     // Ensure we return the expected format
     const result = {
@@ -167,7 +162,7 @@ serve(async (req) => {
       duration: transcriptionResult.duration || 0
     }
     
-    console.log('Returning formatted result:', result);
+    console.log('Returning formatted result:', result)
     
     return new Response(
       JSON.stringify(result),
@@ -178,7 +173,7 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Error in STT function:', error)
-    console.error('Error stack:', error.stack);
+    console.error('Error stack:', error.stack)
     return new Response(
       JSON.stringify({ error: 'Internal server error' }),
       { 
