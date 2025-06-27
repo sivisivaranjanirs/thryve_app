@@ -1,7 +1,6 @@
 import React from 'react';
 import { TouchableOpacity, StyleSheet, ViewStyle, View, Text } from 'react-native';
 import { Mic, MicOff, Volume2, VolumeX } from 'lucide-react-native';
-import Svg, { Circle, Text as SvgText } from 'react-native-svg';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
@@ -9,13 +8,8 @@ import Animated, {
   withRepeat, 
   withSequence,
   interpolate,
-  useAnimatedProps
 } from 'react-native-reanimated';
 import { LoadingSpinner } from './LoadingSpinner';
-
-// Create animated version of Circle for proper SVG animation
-const AnimatedCircle = Animated.createAnimatedComponent(Circle);
-const AnimatedSvgText = Animated.createAnimatedComponent(SvgText);
 
 interface VoiceButtonProps {
   isRecording?: boolean;
@@ -43,7 +37,6 @@ export function VoiceButton({
   showProgress = false,
 }: VoiceButtonProps) {
   const pulseAnimation = useSharedValue(0);
-  const progressAnimation = useSharedValue(0);
 
   React.useEffect(() => {
     if (isRecording) {
@@ -60,15 +53,6 @@ export function VoiceButton({
     }
   }, [isRecording]);
 
-  React.useEffect(() => {
-    if (showProgress && recordingProgress > 0) {
-      const progress = Math.max(0, 1 - (recordingProgress / 5000)); // Assuming 5 second max
-      progressAnimation.value = withTiming(progress, { duration: 100 });
-    } else {
-      progressAnimation.value = withTiming(0, { duration: 300 });
-    }
-  }, [recordingProgress, showProgress]);
-
   const pulseStyle = useAnimatedStyle(() => {
     const scale = interpolate(pulseAnimation.value, [0, 1], [1, 1.2]);
     const opacity = interpolate(pulseAnimation.value, [0, 1], [0.3, 0.8]);
@@ -76,18 +60,6 @@ export function VoiceButton({
     return {
       transform: [{ scale }],
       opacity,
-    };
-  });
-
-  const progressProps = useAnimatedProps(() => {
-    const strokeDashoffset = interpolate(
-      progressAnimation.value,
-      [0, 1],
-      [126, 0] // Circumference of circle with radius 20
-    );
-    
-    return {
-      strokeDashoffset,
     };
   });
 
@@ -148,38 +120,9 @@ export function VoiceButton({
 
       {showProgress && recordingProgress > 0 && (
         <View style={styles.progressContainer}>
-          <Svg width="52" height="52" style={styles.progressSvg}>
-            <Circle
-              cx="26"
-              cy="26"
-              r="20"
-              stroke="#E5E7EB"
-              strokeWidth="3"
-              fill="transparent"
-            />
-            <AnimatedCircle
-              cx="26"
-              cy="26"
-              r="20"
-              stroke="#3B82F6"
-              strokeWidth="3"
-              fill="transparent"
-              strokeDasharray="126"
-              strokeLinecap="round"
-              animatedProps={progressProps}
-            />
-            <SvgText
-              x="26"
-              y="30"
-              textAnchor="middle"
-              alignmentBaseline="middle"
-              fontSize="10"
-              fontWeight="600"
-              fill="#3B82F6"
-            >
-              {`${Math.ceil(recordingProgress / 1000)}s`}
-            </SvgText>
-          </Svg>
+          <Text style={styles.progressText}>
+            {Math.ceil(recordingProgress / 1000)}s
+          </Text>
         </View>
       )}
     </View>
@@ -225,14 +168,13 @@ const styles = StyleSheet.create({
   },
   progressContainer: {
     position: 'absolute',
-    width: 52,
-    height: 52,
+    bottom: -20,
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: -1,
   },
-  progressSvg: {
-    position: 'absolute',
-    transform: [{ rotate: '-90deg' }],
+  progressText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#3B82F6',
   },
 });

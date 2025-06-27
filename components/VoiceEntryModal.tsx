@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,8 +7,7 @@ import {
   TouchableOpacity,
   Animated,
 } from 'react-native';
-import { Mic, MicOff, CircleAlert as AlertCircle } from 'lucide-react-native';
-import { useVoiceChat } from '@/hooks/useVoiceChat';
+import { Mic, MicOff, CircleAlert as AlertCircle, CircleCheck as CheckCircle } from 'lucide-react-native';
 import { useSubscription } from '@/hooks/useSubscription';
 import * as Sentry from '@sentry/react';
 
@@ -20,7 +19,7 @@ interface VoiceEntryModalProps {
   onVoiceDataParsed: (parsedData: Record<string, string>) => void;
 }
 
-type VoiceState = 'idle' | 'recording' | 'processing' | 'success' | 'error';
+type VoiceState = 'idle' | 'requesting_permission' | 'recording' | 'processing' | 'success' | 'error';
 
 export function VoiceEntryModal({ visible, onClose, onVoiceDataParsed }: VoiceEntryModalProps) {
   const { getPremiumFeatures } = useSubscription();
@@ -29,14 +28,43 @@ export function VoiceEntryModal({ visible, onClose, onVoiceDataParsed }: VoiceEn
   const [voiceState, setVoiceState] = useState<VoiceState>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [debugInfo, setDebugInfo] = useState<string[]>([]);
+  const [recordingTime, setRecordingTime] = useState(0);
   
   const scaleAnim = new Animated.Value(1);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const recordingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Add debug logging
   const addDebugInfo = (message: string) => {
     const timestamp = new Date().toLocaleTimeString();
-    setDebugInfo(prev => [...prev.slice(-4), `${timestamp}: ${message}`]);
+    const logMessage = `${timestamp}: ${message}`;
+    setDebugInfo(prev => [...prev.slice(-4), logMessage]);
     logger.debug('Voice Entry Debug', { message });
+  };
+
+  // Cleanup function
+  const cleanup = () => {
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.abort();
+        recognitionRef.current = null;
+      } catch (error) {
+        // Ignore cleanup errors
+      }
+    }
+    
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+    
+    if (recordingTimeoutRef.current) {
+      clearTimeout(recordingTimeoutRef.current);
+      recordingTimeoutRef.current = null;
+    }
+    
+    setRecordingTime(0);
   };
 
   // Reset everything when modal opens/closes
@@ -46,11 +74,15 @@ export function VoiceEntryModal({ visible, onClose, onVoiceDataParsed }: VoiceEn
       setVoiceState('idle');
       setErrorMessage(null);
       setDebugInfo([]);
+      setRecordingTime(0);
     } else {
-      addDebugInfo('Modal closed');
+      addDebugInfo('Modal closed - cleaning up');
+      cleanup();
       setVoiceState('idle');
       setErrorMessage(null);
     }
+    
+    return cleanup;
   }, [visible]);
 
   const parseVoiceTranscriptForMetrics = (transcript: string): Record<string, string> => {
@@ -150,95 +182,183 @@ export function VoiceEntryModal({ visible, onClose, onVoiceDataParsed }: VoiceEn
       return;
     }
 
+    // Handle different states
+    if (voiceState === 'recording') {
+      addDebugInfo('Stopping recording manually');
+      stopRecording();
+      return;
+    }
+
     // Prevent multiple recordings
     if (voiceState !== 'idle' && voiceState !== 'error') {
       addDebugInfo(`Recording blocked - current state: ${voiceState}`);
       return;
     }
 
-    // Clear previous errors
-    setErrorMessage(null);
-    setVoiceState('recording');
-    addDebugInfo('Starting recording process');
-    
-    // Animate mic button
-    Animated.sequence([
-      Animated.timing(scaleAnim, {
-        toValue: 1.2,
-        duration: 200,
-        useNativeDriver: false,
-      }),
-      Animated.timing(scaleAnim, {
-        toValue: 1,
-        duration: 200,
-        useNativeDriver: false,
-      }),
-    ]).start();
+    // Start recording process
+    await startRecording();
+  };
 
+  const startRecording = async () => {
     try {
-      // Test microphone access first
-      addDebugInfo('Testing microphone access');
+      // Clear previous errors
+      setErrorMessage(null);
+      setVoiceState('requesting_permission');
+      addDebugInfo('Requesting microphone permission');
       
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error('Microphone access not supported in this browser');
+      // Check browser support
+      if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+        throw new Error('Speech recognition is not supported in this browser. Please use Chrome, Edge, or Safari.');
       }
 
-      // Request microphone permission
+      // Request microphone permission first
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      addDebugInfo('Microphone access granted');
+      addDebugInfo('Microphone permission granted');
       
-      // Stop the test stream
+      // Stop the test stream immediately
       stream.getTracks().forEach(track => track.stop());
 
-      // Now start actual recording
-      setVoiceState('processing');
+      // Now start speech recognition
+      setVoiceState('recording');
       addDebugInfo('Starting speech recognition');
 
-      // Use Web Speech API directly for better debugging
-      const transcript = await startWebSpeechRecognition();
-      
-      if (transcript && transcript.trim()) {
-        addDebugInfo(`Transcript received: "${transcript}"`);
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const recognition = new SpeechRecognition();
+      recognitionRef.current = recognition;
+
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.lang = 'en-US';
+      recognition.maxAlternatives = 1;
+
+      // Start recording timer
+      setRecordingTime(0);
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingTime(prev => prev + 1);
+      }, 1000);
+
+      // Set maximum recording time (10 seconds)
+      recordingTimeoutRef.current = setTimeout(() => {
+        addDebugInfo('Recording timeout - stopping');
+        stopRecording();
+      }, 10000);
+
+      recognition.onstart = () => {
+        addDebugInfo('Speech recognition started successfully');
         
-        const parsedMetrics = parseVoiceTranscriptForMetrics(transcript);
+        // Animate mic button
+        Animated.sequence([
+          Animated.timing(scaleAnim, {
+            toValue: 1.2,
+            duration: 200,
+            useNativeDriver: false,
+          }),
+          Animated.timing(scaleAnim, {
+            toValue: 1,
+            duration: 200,
+            useNativeDriver: false,
+          }),
+        ]).start();
+      };
+
+      recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        const confidence = event.results[0][0].confidence;
+        addDebugInfo(`Recognition result: "${transcript}" (confidence: ${confidence.toFixed(2)})`);
         
-        if (Object.keys(parsedMetrics).length > 0) {
-          addDebugInfo('Metrics found - showing success');
-          setVoiceState('success');
+        setVoiceState('processing');
+        cleanup();
+        
+        if (transcript && transcript.trim()) {
+          const parsedMetrics = parseVoiceTranscriptForMetrics(transcript);
           
-          // Show success for a moment, then close and pass data
-          setTimeout(() => {
-            onClose();
+          if (Object.keys(parsedMetrics).length > 0) {
+            addDebugInfo('Metrics found - showing success');
+            setVoiceState('success');
+            
+            // Show success for a moment, then close and pass data
             setTimeout(() => {
-              onVoiceDataParsed(parsedMetrics);
-            }, 100);
-          }, 1000);
+              onClose();
+              setTimeout(() => {
+                onVoiceDataParsed(parsedMetrics);
+              }, 100);
+            }, 1500);
+          } else {
+            addDebugInfo('No metrics detected in transcript');
+            setVoiceState('error');
+            setErrorMessage(`I heard: "${transcript}"\n\nBut I couldn't detect any health metrics. Please try phrases like "My blood pressure is 120 over 80" or "Heart rate 72 beats per minute".`);
+            
+            // Auto-reset after error
+            setTimeout(() => {
+              setVoiceState('idle');
+              setErrorMessage(null);
+            }, 5000);
+          }
         } else {
-          addDebugInfo('No metrics detected in transcript');
+          addDebugInfo('Empty transcript received');
           setVoiceState('error');
-          setErrorMessage(`I heard: "${transcript}"\n\nBut I couldn't detect any health metrics. Please try phrases like "My blood pressure is 120 over 80" or "Heart rate 72 beats per minute".`);
+          setErrorMessage('No speech detected. Please speak clearly and try again.');
           
-          // Auto-reset after error
           setTimeout(() => {
             setVoiceState('idle');
             setErrorMessage(null);
-          }, 5000);
+          }, 3000);
         }
-      } else {
-        addDebugInfo('No transcript received');
-        setVoiceState('error');
-        setErrorMessage('No speech detected. Please speak clearly and try again.');
+      };
+
+      recognition.onerror = (event) => {
+        addDebugInfo(`Recognition error: ${event.error}`);
+        cleanup();
         
+        setVoiceState('error');
+        let errorMsg = 'Speech recognition failed. Please try again.';
+        
+        switch (event.error) {
+          case 'no-speech':
+            errorMsg = 'No speech detected. Please speak clearly and try again.';
+            break;
+          case 'audio-capture':
+            errorMsg = 'Microphone not accessible. Please check your microphone.';
+            break;
+          case 'not-allowed':
+            errorMsg = 'Microphone access denied. Please allow microphone permissions.';
+            break;
+          case 'network':
+            errorMsg = 'Network error. Please check your internet connection.';
+            break;
+          case 'aborted':
+            // Don't show error for manual abort
+            setVoiceState('idle');
+            return;
+        }
+        
+        setErrorMessage(errorMsg);
+        
+        // Auto-reset after error
         setTimeout(() => {
           setVoiceState('idle');
           setErrorMessage(null);
-        }, 3000);
-      }
+        }, 4000);
+      };
+
+      recognition.onend = () => {
+        addDebugInfo('Speech recognition ended');
+        if (voiceState === 'recording') {
+          // If we're still in recording state, it ended unexpectedly
+          setVoiceState('processing');
+        }
+      };
+
+      // Start recognition
+      recognition.start();
+      
     } catch (error) {
       addDebugInfo(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
       Sentry.captureException(error);
       
+      cleanup();
       setVoiceState('error');
+      
       let errorMsg = 'Voice recording failed. Please try again.';
       
       if (error instanceof Error) {
@@ -263,84 +383,27 @@ export function VoiceEntryModal({ visible, onClose, onVoiceDataParsed }: VoiceEn
     }
   };
 
-  const startWebSpeechRecognition = (): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      addDebugInfo('Initializing Web Speech API');
-      
-      if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-        reject(new Error('Speech recognition not supported in this browser'));
-        return;
-      }
-
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      const recognition = new SpeechRecognition();
-
-      recognition.continuous = false;
-      recognition.interimResults = false;
-      recognition.lang = 'en-US';
-      recognition.maxAlternatives = 1;
-
-      let timeoutId: NodeJS.Timeout;
-
-      recognition.onstart = () => {
-        addDebugInfo('Speech recognition started');
-        // Set timeout for 10 seconds
-        timeoutId = setTimeout(() => {
-          addDebugInfo('Recognition timeout - stopping');
-          recognition.stop();
-        }, 10000);
-      };
-
-      recognition.onresult = (event) => {
-        if (timeoutId) clearTimeout(timeoutId);
-        const transcript = event.results[0][0].transcript;
-        const confidence = event.results[0][0].confidence;
-        addDebugInfo(`Recognition result: "${transcript}" (confidence: ${confidence})`);
-        resolve(transcript);
-      };
-
-      recognition.onerror = (event) => {
-        if (timeoutId) clearTimeout(timeoutId);
-        addDebugInfo(`Recognition error: ${event.error}`);
-        
-        let errorMessage = 'Speech recognition failed';
-        switch (event.error) {
-          case 'no-speech':
-            errorMessage = 'No speech detected. Please speak clearly and try again.';
-            break;
-          case 'audio-capture':
-            errorMessage = 'Microphone not accessible. Please check your microphone.';
-            break;
-          case 'not-allowed':
-            errorMessage = 'Microphone access denied. Please allow microphone permissions.';
-            break;
-          case 'network':
-            errorMessage = 'Network error. Please check your internet connection.';
-            break;
-        }
-        
-        reject(new Error(errorMessage));
-      };
-
-      recognition.onend = () => {
-        if (timeoutId) clearTimeout(timeoutId);
-        addDebugInfo('Speech recognition ended');
-      };
-
+  const stopRecording = () => {
+    addDebugInfo('Stopping recording');
+    
+    if (recognitionRef.current) {
       try {
-        addDebugInfo('Starting speech recognition');
-        recognition.start();
+        recognitionRef.current.stop();
       } catch (error) {
-        if (timeoutId) clearTimeout(timeoutId);
-        reject(new Error('Failed to start speech recognition'));
+        addDebugInfo('Error stopping recognition');
       }
-    });
+    }
+    
+    cleanup();
+    setVoiceState('idle');
   };
 
   const getButtonText = () => {
     switch (voiceState) {
+      case 'requesting_permission':
+        return 'Requesting microphone access...';
       case 'recording':
-        return 'Listening... Speak now';
+        return `Listening... (${recordingTime}s) - Tap to stop`;
       case 'processing':
         return 'Processing your speech...';
       case 'success':
@@ -356,6 +419,8 @@ export function VoiceEntryModal({ visible, onClose, onVoiceDataParsed }: VoiceEn
 
   const getButtonColor = () => {
     switch (voiceState) {
+      case 'requesting_permission':
+        return '#F59E0B'; // Orange for permission
       case 'recording':
         return '#EF4444'; // Red while recording
       case 'processing':
@@ -372,7 +437,18 @@ export function VoiceEntryModal({ visible, onClose, onVoiceDataParsed }: VoiceEn
   const isButtonDisabled = () => {
     return !premiumFeatures.voiceEntryForHealthMetrics || 
            voiceState === 'processing' || 
-           voiceState === 'success';
+           voiceState === 'success' ||
+           voiceState === 'requesting_permission';
+  };
+
+  const getButtonIcon = () => {
+    if (voiceState === 'success') {
+      return <CheckCircle size={32} color="#ffffff" />;
+    } else if (voiceState === 'recording') {
+      return <MicOff size={32} color="#ffffff" />;
+    } else {
+      return <Mic size={32} color="#ffffff" />;
+    }
   };
 
   return (
@@ -396,11 +472,7 @@ export function VoiceEntryModal({ visible, onClose, onVoiceDataParsed }: VoiceEn
               onPress={handleMicPress}
               disabled={isButtonDisabled()}
             >
-              {voiceState === 'recording' ? (
-                <MicOff size={32} color="#ffffff" />
-              ) : (
-                <Mic size={32} color="#ffffff" />
-              )}
+              {getButtonIcon()}
             </TouchableOpacity>
           </Animated.View>
 
@@ -493,11 +565,12 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   instruction: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
     color: '#1F2937',
     marginBottom: 32,
     textAlign: 'center',
+    minHeight: 40,
   },
   examplesContainer: {
     alignItems: 'center',
