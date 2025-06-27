@@ -235,7 +235,7 @@ class ElevenLabsService {
           
           // Try ElevenLabs first, fallback to Web Speech API if it fails
           try {
-            // Try ElevenLabs via Edge Functions
+            // Record audio first
             const audioData = await this.recordAudio(
               options.recordingDuration || 5000,
             );
@@ -246,6 +246,11 @@ class ElevenLabsService {
             }
             
             span.setAttribute("audio_size", audioData.byteLength);
+            
+            // Validate audio data size (should be reasonable for 5 seconds)
+            if (audioData.byteLength < 1000) {
+              throw new Error('Audio recording too short. Please speak for longer.');
+            }
             // Convert audio data to base64 for the Edge Function
             const base64Audio = btoa(String.fromCharCode(...new Uint8Array(audioData)));
             
@@ -416,6 +421,7 @@ class ElevenLabsService {
           if (!window.MediaRecorder) {
             stream.getTracks().forEach(track => track.stop());
             logger.error('MediaRecorder not supported');
+            logger.error('MediaRecorder not supported');
             throw new Error('Audio recording is not supported in this browser.');
           }
       
@@ -423,6 +429,11 @@ class ElevenLabsService {
             mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus') 
               ? 'audio/webm;codecs=opus' 
               : 'audio/webm'
+          });
+          
+          // Validate MediaRecorder was created successfully
+          if (!mediaRecorder) {
+            throw new Error('Failed to create MediaRecorder');
           });
           const chunks: Blob[] = [];
 
@@ -433,6 +444,7 @@ class ElevenLabsService {
             let recordingTimeout: NodeJS.Timeout;
 
             mediaRecorder.ondataavailable = (event) => {
+              logger.debug(`Audio chunk received: ${event.data.size} bytes, type: ${event.data.type}`);
               if (event.data.size > 0) {
                 chunks.push(event.data);
                 hasData = true;
@@ -454,6 +466,13 @@ class ElevenLabsService {
               const audioBlob = new Blob(chunks, { 
                 type: mediaRecorder.mimeType || 'audio/webm' 
               });
+              
+              // Log blob details for debugging
+              logger.info('Audio blob created', { 
+                size: audioBlob.size, 
+                type: audioBlob.type,
+                chunksCount: chunks.length 
+              });
               logger.info('Audio blob created', { size: audioBlob.size });
               const arrayBuffer = await audioBlob.arrayBuffer();
           
@@ -474,9 +493,23 @@ class ElevenLabsService {
               if (progressInterval) clearInterval(progressInterval);
               if (recordingTimeout) clearTimeout(recordingTimeout);
           
+              logger.error('MediaRecorder error', { error: error.error || error });
               logger.error('MediaRecorder error', { error });
               Sentry.captureException(error);
               reject(error);
+            };
+
+            // Add more event listeners for debugging
+            mediaRecorder.onstart = () => {
+              logger.debug('MediaRecorder started successfully');
+            };
+            
+            mediaRecorder.onpause = () => {
+              logger.debug('MediaRecorder paused');
+            };
+            
+            mediaRecorder.onresume = () => {
+              logger.debug('MediaRecorder resumed');
             };
 
             logger.debug('Starting MediaRecorder');
@@ -491,6 +524,15 @@ class ElevenLabsService {
             }, durationMs);
           });
         } catch (error) {
+          // Enhanced error logging
+          logger.error('Audio recording setup error', { 
+            error: error instanceof Error ? error.message : 'Unknown error',
+            name: error instanceof Error ? error.name : 'Unknown',
+            stack: error instanceof Error ? error.stack : undefined,
+            mediaDevicesSupported: 'mediaDevices' in navigator,
+            mediaRecorderSupported: 'MediaRecorder' in window,
+            userAgent: navigator.userAgent
+          });
           logger.error('Audio recording error', { error: error instanceof Error ? error.message : 'Unknown error' });
           Sentry.captureException(error);
       
@@ -498,6 +540,9 @@ class ElevenLabsService {
             if (error.name === 'NotAllowedError') {
               throw new Error('Microphone access denied. Please allow microphone permissions in your browser settings and try again.');
             } else if (error.name === 'NotFoundError') {
+              throw new Error('No microphone found. Please connect a microphone and try again.');
+            } else if (error.name === 'NotReadableError') {
+              throw new Error('Microphone is being used by another application. Please close other apps using the microphone and try again.');
               throw new Error('No microphone found. Please connect a microphone and try again.');
             } else if (error.name === 'NotSupportedError') {
               throw new Error('Audio recording is not supported in this browser. Please use a modern browser.');

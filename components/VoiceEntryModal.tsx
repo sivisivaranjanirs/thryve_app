@@ -215,6 +215,11 @@ export function VoiceEntryModal({ visible, onClose, onVoiceDataParsed }: VoiceEn
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       addDebugInfo('Microphone permission granted');
       
+      // Test that we can actually get audio data
+      const audioTracks = stream.getAudioTracks();
+      addDebugInfo(`Audio tracks found: ${audioTracks.length}`);
+      audioTracks.forEach((track, index) => addDebugInfo(`Track ${index}: ${track.label || 'Unnamed'} - ${track.readyState}`));
+      
       // Stop the test stream immediately
       stream.getTracks().forEach(track => track.stop());
 
@@ -324,6 +329,11 @@ export function VoiceEntryModal({ visible, onClose, onVoiceDataParsed }: VoiceEn
           case 'network':
             errorMsg = 'Network error. Please check your internet connection.';
             break;
+          case 'service-not-allowed':
+            errorMsg = 'Speech recognition service not available. Please try again later.';
+            break;
+          case 'language-not-supported':
+            errorMsg = 'Language not supported. Please try with English.';
           case 'aborted':
             // Don't show error for manual abort
             setVoiceState('idle');
@@ -366,6 +376,12 @@ export function VoiceEntryModal({ visible, onClose, onVoiceDataParsed }: VoiceEn
           errorMsg = 'No microphone found. Please connect a microphone and try again.';
         } else if (error.message.includes('not supported')) {
           errorMsg = 'Voice recording is not supported in this browser. Please use Chrome, Edge, or Safari.';
+        } else if (error.message.includes('NotReadableError')) {
+          errorMsg = 'Microphone is being used by another application. Please close other apps and try again.';
+        } else if (error.message.includes('OverconstrainedError')) {
+          errorMsg = 'Microphone settings not supported. Please try with a different microphone.';
+        } else if (error.message.includes('SecurityError')) {
+          errorMsg = 'Microphone access blocked by browser security settings. Please check your browser permissions.';
         } else {
           errorMsg = error.message;
         }
