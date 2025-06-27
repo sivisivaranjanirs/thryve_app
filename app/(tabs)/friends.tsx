@@ -28,6 +28,7 @@ import {
   Shield,
   FileText,
 } from 'lucide-react-native';
+import { AppHeader } from '@/components/AppHeader';
 import { useReadingPermissions } from '@/hooks/useReadingPermissions';
 import { useUsers } from '@/hooks/useUsers';
 import { useHealthMetrics } from '@/hooks/useHealthMetrics';
