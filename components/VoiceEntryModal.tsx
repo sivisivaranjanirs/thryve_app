@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   Animated,
 } from 'react-native';
-import { Mic, MicOff, AlertCircle } from 'lucide-react-native';
+import { Mic, MicOff, CircleAlert as AlertCircle } from 'lucide-react-native';
 import { useVoiceChat } from '@/hooks/useVoiceChat';
 import { useSubscription } from '@/hooks/useSubscription';
 import * as Sentry from '@sentry/react';
