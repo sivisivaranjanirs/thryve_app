@@ -434,7 +434,7 @@ class ElevenLabsService {
           // Validate MediaRecorder was created successfully
           if (!mediaRecorder) {
             throw new Error('Failed to create MediaRecorder');
-          });
+          }
           const chunks: Blob[] = [];
 
           return new Promise((resolve, reject) => {
@@ -543,7 +543,6 @@ class ElevenLabsService {
               throw new Error('No microphone found. Please connect a microphone and try again.');
             } else if (error.name === 'NotReadableError') {
               throw new Error('Microphone is being used by another application. Please close other apps using the microphone and try again.');
-              throw new Error('No microphone found. Please connect a microphone and try again.');
             } else if (error.name === 'NotSupportedError') {
               throw new Error('Audio recording is not supported in this browser. Please use a modern browser.');
             } else {
