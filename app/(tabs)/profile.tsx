@@ -821,6 +821,9 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
   },
+  scrollContent: {
+    paddingBottom: 100,
+  },
   tabContent: {
     paddingHorizontal: 24,
     paddingTop: 16,

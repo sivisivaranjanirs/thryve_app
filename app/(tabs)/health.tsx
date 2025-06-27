@@ -551,7 +551,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingTop: 80, // Account for header
     paddingBottom: 100,
   },
   headerSection: {

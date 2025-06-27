@@ -689,7 +689,10 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  scrollContent: {
     paddingHorizontal: 24,
+    paddingBottom: 100,
   },
   section: {
     backgroundColor: '#ffffff',

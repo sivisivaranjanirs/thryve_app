@@ -606,7 +606,6 @@ const styles = StyleSheet.create({
   messagesContent: {
     paddingHorizontal: 24,
     paddingVertical: 16,
-    paddingTop: 80, // Account for header
   },
   messageContainer: {
     marginBottom: 16,
